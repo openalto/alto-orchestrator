@@ -8,17 +8,19 @@ import gunicorn.app.base
 from gunicorn.six import iteritems
 
 def parse_argument():
-    args = argparse.ArgumentParser(description='ALTO Orchestrator Service.')
-    args.add_argument('-c', '--config', dest='config',
+    parser = argparse.ArgumentParser(description='ALTO Orchestrator Service.')
+    parser.add_argument('-c', '--config', dest='config',
                       type=argparse.FileType('r'),
                       help='Specify the json format configuration file')
-    args.add_argument('-a', '--address', dest='address',
+    parser.add_argument('-a', '--address', dest='address',
                       default='127.0.0.1')
-    args.add_argument('-p', '--port', dest='port',
+    parser.add_argument('-p', '--port', dest='port',
                       default='6666', type=int,
                       help='TCP port the service will listen on (default: 6666).')
-    args.add_argument('-v', '--verbose', action='store_true',
+    parser.add_argument('-v', '--verbose', action='store_true',
                       help='Enable verbosity to trace import statements')
+    args = parser.parse_args()
+    return args
 
 class Registry(object):
 
@@ -55,13 +57,10 @@ class OrchestratorService(gunicorn.app.base.BaseApplication):
 
 if __name__ == '__main__':
     args = parse_argument()
-    config = args.parse_args(sys.argv[1:])
-
     options = {
-        'bind': '%s:%d' % (config.config.get('address', config.address),
-                           config.config.get('port', config.port))
+        'bind': '%s:%d' % (args.address, args.port)
     }
     app = falcon.API()
-    registry = Registry(config)
+    registry = Registry(args)
     app.add_route('/register', registry)
     OrchestratorService(app, options).run()
