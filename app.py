@@ -7,6 +7,7 @@ import falcon
 import gunicorn.app.base
 from gunicorn.six import iteritems
 
+
 def parse_argument():
     parser = argparse.ArgumentParser(description='ALTO Orchestrator Service.')
     parser.add_argument('-c', '--config', dest='config',
@@ -21,6 +22,7 @@ def parse_argument():
                       help='Enable verbosity to trace import statements')
     args = parser.parse_args()
     return args
+
 
 class Registry(object):
 
@@ -38,6 +40,7 @@ class Registry(object):
         feedback = self.register(**agent_info)
         res.status = falcon.HTTP_200
         res.body = json.dumps(feedback)
+
 
 class OrchestratorService(gunicorn.app.base.BaseApplication):
 
