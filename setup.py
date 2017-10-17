@@ -13,10 +13,10 @@ def files(dirname):
 
 
 setup(
-    name="alto-orchestrator",
+    name="alto-unicorn",
     version="0.1",
-    description="An orchestrator as a platform of job placement scheduler",
-    url="https://github.com/openalto/alto-orchestrator",
+    description="An unicorn as a platform of job placement scheduler",
+    url="https://github.com/openalto/alto-unicorn",
     author="Jensen Zhang, Jace Liu",
     author_email="hack@jensen-zhang.site, yang.jace.liu@linux.com",
     classifiers=[
@@ -28,7 +28,7 @@ setup(
     ],
     license="MIT",
     long_description=read("README.rst"),
-    packages=['alto-orchestrator'],
+    packages=['alto.unicorn'],
     scripts=files('bin'),
     zip_safe=False
 )
