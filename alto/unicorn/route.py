@@ -1,4 +1,4 @@
-from .registry import Registry
+from .entries import RegisterEntry, TasksEntry
 
 
 class Routes(object):
@@ -29,7 +29,8 @@ routes = Routes()
 
 def set_route(app, config=None):
     # Add your routes here
-    routes.addRoute("/register", Registry, config)
+    routes.addRoute("/register", RegisterEntry, config)
+    routes.addRoute("/task", TasksEntry)
 
     for i in routes:
         app.add_route(i, routes[i])

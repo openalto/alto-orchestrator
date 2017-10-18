@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from os import path, listdir
 
 
@@ -17,8 +17,8 @@ setup(
     version="0.1",
     description="An unicorn as a platform of job placement scheduler",
     url="https://github.com/openalto/alto-unicorn",
-    author="Jensen Zhang, Jace Liu",
-    author_email="hack@jensen-zhang.site, yang.jace.liu@linux.com",
+    author="Y.Jace Liu, Jensen Zhang",
+    author_email="yang.jace.liu@linux.com, hack@jensen-zhang.site",
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python",
@@ -28,7 +28,8 @@ setup(
     ],
     license="MIT",
     long_description=read("README.rst"),
-    packages=['alto.unicorn'],
+    packages=find_packages(),
+    package_data={"alto.unicorn": ["schema/*.yaml"]},
     scripts=files('bin'),
     zip_safe=False
 )

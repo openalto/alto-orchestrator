@@ -1,2 +1,4 @@
 gunicorn
 falcon
+jsonschema
+pyyaml

@@ -1,0 +1,65 @@
+---
+"$schema": http://json-schema.org/draft-06/schema#
+title: Task
+description: A task to be scheduled
+type: array
+minItems: 1
+uniqueItems: true
+items:
+  type: object
+  properties:
+    id:
+      description: The id of the task
+      type: integer
+    jobs:
+      description: The array of jobs of the task
+      type: array
+      minItems: 0
+      uniqueItems: true
+      items:
+        type: object
+        properties:
+          potential_srcs:
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: object
+              properties:
+                ip:
+                  type: string
+                  pattern: "^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|$"
+                port:
+                  type: integer
+                  minimum: 0
+                  maximum: 65535
+          potential_dsts:
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: object
+              properties:
+                ip:
+                  type: string
+                  pattern: "^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|$"
+                port:
+                  type: integer
+                  minimum: 0
+                  maximum: 65535
+              required:
+              - ip
+              - port
+          protocol:
+            type: string
+            enum:
+            - tcp
+            - udp
+            - sctp
+        required:
+        - potential_srcs
+        - potential_dsts
+        - protocol
+  required:
+  - id
+  - jobs

@@ -1,0 +1,47 @@
+---
+"$schema": http://json-schema.org/draft-06/schema#
+type: object
+properties:
+  domain-name:
+    type: string
+    title: The domain-name schema.
+    description: The name of the domain
+    examples:
+    - domain1
+    id: "/properties/domain-name"
+  controller-url:
+    type: string
+    title: The controller-url schema.
+    description: The base URL of the controller for doing path query and resource query
+    examples:
+    - https://10.0.1.40:8181/api/openalto/adapter/
+    id: "/properties/controller-url"
+  hosts:
+    id: "/properties/hosts"
+    type: array
+    minItems: 1
+    uniqueItems: true
+    items:
+      description: Host IPs in the domain
+      examples:
+      - 10.0.1.100
+      id: "/properties/hosts/items"
+      type: string
+      pattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|$
+  ingress-points:
+    type: array
+    id: "/properties/ingress-points"
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      description: The ip of ingress points
+      examples:
+      - 10.0.1.1
+      id: "/properties/ingress-points/items"
+      pattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|$
+required:
+- hosts
+- ingress-points
+- domain-name
+- controller-url
