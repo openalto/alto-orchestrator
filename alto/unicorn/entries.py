@@ -4,6 +4,8 @@ import falcon
 from jsonschema import validate
 
 from . import TASKS_SCHEMA
+from .data_provider import DomainsData
+from .threads import PathQueryThread
 
 
 class RegisterEntry(object):
@@ -30,15 +32,18 @@ class TasksEntry(object):
         self.task2Jobs = dict()
         self.flows = dict()
 
-    def _path_query(self, src_ip, dst_ip, src_port=None, dst_port=None):
-        pass
-
-    def group(self, tasks):
+    def group(self):
         """
-        Given an array of tasks, return a dict from the domain name to grouped flows
         :return: a dict from domain name to grouped flows
         """
-        pass
+        grouped_flows = dict()
+        for flow in self.flows.keys():
+            src_ip = flow[0]
+            domain_name = DomainsData().urlLookupFromIP(src_ip)
+            if domain_name not in grouped_flows:
+                grouped_flows[domain_name] = set()
+            grouped_flows[domain_name].add(flow)
+        return grouped_flows
 
     def index(self, info):
         taskIndex = 0
@@ -66,6 +71,14 @@ class TasksEntry(object):
             taskIndex += 1
         return info
 
+    def _path_query(self, grouped_flows):
+        threads = set()
+        for domain_name in grouped_flows.keys():
+            flows = grouped_flows[domain_name]
+            thread = PathQueryThread(domain_name, flows)
+            thread.start()
+
+
     def on_post(self, req, res):
         raw_data = req.stream.read()
         info = json.loads(raw_data.decode('utf-8'))
@@ -73,11 +86,11 @@ class TasksEntry(object):
         # Validate input with json schema
         validate(info, TASKS_SCHEMA)
 
-        # Index the info
+        # Reconstruct into into self.tasks, self.jobs, self.flows
         info = self.index(info)
 
-        # Reconstruct into into self.tasks, self.jobs, self.flows
-
-
         # Preprocess: Group flows with same domain
-        flows = self.group(info)
+        grouped_flows = self.group()
+
+        # Send request - Path Query
+        self._path_query(grouped_flows)

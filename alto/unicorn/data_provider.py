@@ -8,10 +8,13 @@ class SingletonType(type):
             return cls.__instance
 
 
-class Domains(SingletonType):
+class DomainsData(metaclass=SingletonType):
     def __init__(self):
-        super().__init__()
+        super(DomainsData, self).__init__()
+        # domain name -> information
         self.domains = {}
+
+        # IP -> domain name
         self.ip2domain = {}
 
     def __iter__(self):
@@ -39,5 +42,45 @@ class Domains(SingletonType):
         else:
             return False
 
-    def ipLookup(self, ip):
+    def urlLookupFromIP(self, ip):
         return self.ip2domain[ip]
+
+
+class PathQueryData(metaclass=SingletonType):
+    def __init__(self):
+        super(PathQueryData, self).__init__()
+        self.flowsPath = dict()
+        self.lock = False
+
+    def clear(self):
+        self.flowsPath = dict()
+
+    def addPath(self, flow, hop):
+        if flow in self.flowsPath:
+
+            # Lock
+            while not self.lock:
+                pass
+            self.lock = True
+
+            self.flowsPath[flow].append(hop)
+
+            # Unlock
+            lock = False
+        else:
+            # Lock
+            while not self.flowsPath:
+                pass
+            self.lock = True
+
+            self.flowsPath[flow] = list()
+            self.flowsPath[flow].append(hop)
+
+            # Unlock
+            lock = False
+
+    def getLastHop(self, flow):
+        return self.flowsPath[flow][-1]
+
+    def hasFlowFetched(self, flow):
+        return flow in self.flowsPath
