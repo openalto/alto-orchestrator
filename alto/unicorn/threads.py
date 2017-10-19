@@ -19,7 +19,7 @@ class PathQueryThread(Thread):
         # flow is a 5-tuple: (src-ip, src-port, dst-ip, dst-port, protocol)
         for flow in self.flows:
             data.append({
-                "ingress-point": PathQueryData.getLastHop(flow),
+                "ingress-point": PathQueryData().getLastHop(flow),
                 "flow": {
                     "src-ip": flow[0],
                     "src-port": flow[1],
@@ -40,4 +40,4 @@ class PathQueryThread(Thread):
         # Write result to PathQueryData
         path_data = list(zip(self.flows, next_hops))
         for flow_next_hop in path_data:
-            PathQueryData().addPath(flow_next_hop[0], flow_next_hop[1])
+            PathQueryData().addhop(flow_next_hop[0], flow_next_hop[1])

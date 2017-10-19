@@ -42,20 +42,28 @@ class DomainsData(metaclass=SingletonType):
         else:
             return False
 
-    def urlLookupFromIP(self, ip):
+    def ip2DomainName(self, ip):
         return self.ip2domain[ip]
 
 
 class PathQueryData(metaclass=SingletonType):
     def __init__(self):
         super(PathQueryData, self).__init__()
+
+        # flow -> path
         self.flowsPath = dict()
+
+        # lock
         self.lock = False
+
+        self.reachedFlow = set()
 
     def clear(self):
         self.flowsPath = dict()
+        self.lock = False
+        self.reachedFlow.clear()
 
-    def addPath(self, flow, hop):
+    def addhop(self, flow, hop):
         if flow in self.flowsPath:
 
             # Lock
@@ -84,3 +92,9 @@ class PathQueryData(metaclass=SingletonType):
 
     def hasFlowFetched(self, flow):
         return flow in self.flowsPath
+
+    def addReachedFlow(self, flow):
+        self.reachedFlow.add(flow)
+
+    def isFlowReached(self, flow):
+        return flow in self.reachedFlow

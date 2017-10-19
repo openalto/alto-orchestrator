@@ -4,7 +4,7 @@ import falcon
 from jsonschema import validate
 
 from . import TASKS_SCHEMA
-from .data_provider import DomainsData
+from .data_provider import DomainsData, PathQueryData
 from .threads import PathQueryThread
 
 
@@ -39,7 +39,7 @@ class TasksEntry(object):
         grouped_flows = dict()
         for flow in self.flows.keys():
             src_ip = flow[0]
-            domain_name = DomainsData().urlLookupFromIP(src_ip)
+            domain_name = DomainsData().ip2DomainName(src_ip)
             if domain_name not in grouped_flows:
                 grouped_flows[domain_name] = set()
             grouped_flows[domain_name].add(flow)
@@ -73,11 +73,29 @@ class TasksEntry(object):
 
     def _path_query(self, grouped_flows):
         threads = set()
-        for domain_name in grouped_flows.keys():
-            flows = grouped_flows[domain_name]
-            thread = PathQueryThread(domain_name, flows)
-            thread.start()
+        PathQueryData().clear()
+        while len(PathQueryData().reachedFlow) < len(grouped_flows):
+            threads.clear()
+            for domain_name in grouped_flows.keys():
+                flows = grouped_flows[domain_name]
+                thread = PathQueryThread(domain_name, flows)
+                threads.add(thread)
+                thread.start()
+            for thread in threads:
+                thread.join()
+            query_result = PathQueryData().flowsPath
+            for flow in query_result.keys():
+                if self.isFlowReached(flow):
+                    PathQueryData().addReachedFlow(flow)
+                    # TODO: flow reach
 
+    def isFlowReached(self, flow):
+        if not PathQueryData().hasFlowFetched(flow):
+            return False
+        last_hop = PathQueryData().getLastHop(flow)
+        domain_name = DomainsData().ip2DomainName(last_hop)
+        dst_name = DomainsData().ip2DomainName(flow[2])  # flow[2] is dst-ip
+        return domain_name == dst_name
 
     def on_post(self, req, res):
         raw_data = req.stream.read()
@@ -94,3 +112,5 @@ class TasksEntry(object):
 
         # Send request - Path Query
         self._path_query(grouped_flows)
+
+        # 1
