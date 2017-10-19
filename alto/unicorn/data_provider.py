@@ -98,3 +98,21 @@ class PathQueryData(metaclass=SingletonType):
 
     def isFlowReached(self, flow):
         return flow in self.reachedFlow
+
+class ResourceQueryData(metaclass=SingletonType):
+    def __init__(self):
+        super(ResourceQueryData, self).__init__()
+        self.domains_abstraction = dict()
+
+    def addAbstraction(self, domain, abstraction):
+        self.domains_abstraction[domain] = abstraction
+
+    def __iter__(self):
+        for domain in self.domains_abstraction.keys():
+            yield domain
+
+    def __contains__(self, item):
+        return item in self.domains_abstraction
+
+    def __getitem__(self, item):
+        return self.domains_abstraction[item]

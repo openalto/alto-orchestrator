@@ -4,8 +4,8 @@ import falcon
 from jsonschema import validate
 
 from . import TASKS_SCHEMA
-from .data_provider import DomainsData, PathQueryData
-from .threads import PathQueryThread
+from .data_provider import DomainsData, PathQueryData, ResourceQueryData
+from .threads import PathQueryThread, ResourceQueryThread
 
 
 class RegisterEntry(object):
@@ -32,14 +32,18 @@ class TasksEntry(object):
         self.task2Jobs = dict()
         self.flows = dict()
 
-    def group(self):
+    def group(self, isBegin=True):
         """
         :return: a dict from domain name to grouped flows
         """
         grouped_flows = dict()
         for flow in self.flows.keys():
-            src_ip = flow[0]
-            domain_name = DomainsData().ip2DomainName(src_ip)
+            if isBegin:
+                src_ip = flow[0]
+                domain_name = DomainsData().ip2DomainName(src_ip)
+            else:
+                ingress_point = PathQueryData().getLastHop(flow)
+                domain_name = DomainsData().ip2DomainName(ingress_point)
             if domain_name not in grouped_flows:
                 grouped_flows[domain_name] = set()
             grouped_flows[domain_name].add(flow)
@@ -73,11 +77,18 @@ class TasksEntry(object):
 
     def _path_query(self, grouped_flows):
         threads = set()
+
+        # Clear Path Query Data, TODO: WARNING: THREAD INSECURE
         PathQueryData().clear()
+
+        # Add source ip to path
+        for flow in set([flows for flows in grouped_flows.values()]):
+            PathQueryData().addhop(flow, flow[0])
+
         while len(PathQueryData().reachedFlow) < len(grouped_flows):
             threads.clear()
             for domain_name in grouped_flows.keys():
-                flows = grouped_flows[domain_name]
+                flows = list(grouped_flows[domain_name])
                 thread = PathQueryThread(domain_name, flows)
                 threads.add(thread)
                 thread.start()
@@ -87,7 +98,30 @@ class TasksEntry(object):
             for flow in query_result.keys():
                 if self.isFlowReached(flow):
                     PathQueryData().addReachedFlow(flow)
+            grouped_flows = self.group(isBegin=False)
                     # TODO: flow reach
+
+    def _resource_query(self, grouped_flows):
+        # the variable contains a dict from every domain to each flow through it
+        # domain name -> set(flows)
+        domains_flows = dict()
+        for flow in set([flows for flows in grouped_flows.values()]):
+            flow_path = PathQueryData().flowsPath[flow]
+            for hop in flow_path:
+                domain_name = DomainsData().ip2DomainName(hop)
+                if domain_name not in domains_flows.keys():
+                    domains_flows[domain_name] = set()
+                domains_flows[domain_name].add(flow)
+
+        threads = set()
+        for domain_name in domains_flows.keys():
+            thread = ResourceQueryThread(domain_name, list(domains_flows[domain_name]))
+            threads.add(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
+        query_result = ResourceQueryData().domains_abstraction
+        # TODO: process query data
 
     def isFlowReached(self, flow):
         if not PathQueryData().hasFlowFetched(flow):
@@ -113,4 +147,5 @@ class TasksEntry(object):
         # Send request - Path Query
         self._path_query(grouped_flows)
 
-        # 1
+        # Send request - Resource Query
+        self._resource_query(grouped_flows)

@@ -6,13 +6,13 @@ from threading import Thread
 from .data_provider import PathQueryData, DomainsData
 
 
-class PathQueryThread(Thread):
+class QueryThread(Thread):
     def __init__(self, domain_name, flows):
         super().__init__(domain_name, flows)
         self.domain_name = domain_name
         self.flows = flows
 
-    def run(self):
+    def prepareData(self):
         url = DomainsData().domains[self.domain_name]["controller-url"]
         data = []
 
@@ -33,11 +33,28 @@ class PathQueryThread(Thread):
         query_data = urllib.parse.urlencode(data)
         req = urllib.request.Request(url, query_data)
         req.add_header("Content-Type", "application/json")
+        return req
+
+    def writeResponseData(self, response_data):
+        raise NotImplementedError
+
+    def run(self):
+        req = self.prepareData()
         response = urllib.request.urlopen(req)
         response_data = response.read()
-        next_hops = json.loads(response_data)
+        self.writeResponseData(response_data)
 
+
+class PathQueryThread(QueryThread):
+    def writeResponseData(self, response_data):
         # Write result to PathQueryData
+        next_hops = json.loads(response_data)
         path_data = list(zip(self.flows, next_hops))
         for flow_next_hop in path_data:
             PathQueryData().addhop(flow_next_hop[0], flow_next_hop[1])
+
+
+class ResourceQueryThread(QueryThread):
+    def writeResponseData(self, response_data):
+        # TODO: Write result to ResourceQueryData
+        pass
