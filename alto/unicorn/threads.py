@@ -1,60 +1,89 @@
 import json
-import urllib.parse
-import urllib.request
-from threading import Thread
+from queue import Queue
+from threading import Thread, Lock
 
-from .data_provider import PathQueryData, DomainsData
+import requests
+from sseclient import SSEClient
+
+from .data_provider import QueryData, DomainData, ThreadData
+from .exceptions import UnknownEventType
+from .utils import update_queries
 
 
-class QueryThread(Thread):
-    def __init__(self, domain_name, flows):
-        super().__init__(domain_name, flows)
+class UpdateStreamThread(Thread):
+    def __init__(self, domain_name, update_url):
+        super(UpdateStreamThread, self).__init__()
         self.domain_name = domain_name
-        self.flows = flows
+        self.update_url = update_url
+        ThreadData().add_update_thread(domain_name, self)
 
-    def prepareData(self):
-        url = DomainsData().domains[self.domain_name]["controller-url"]
-        data = []
+    def get_sseclient(self):
+        """Get SSEClient from url"""
+        response = requests.get(self.update_url, stream=True)
+        return SSEClient(response)
 
-        # flow is a 5-tuple: (src-ip, src-port, dst-ip, dst-port, protocol)
-        for flow in self.flows:
-            data.append({
-                "ingress-point": PathQueryData().getLastHop(flow),
-                "flow": {
-                    "src-ip": flow[0],
-                    "src-port": flow[1],
-                    "dst-ip": flow[2],
-                    "dst-port": flow[3],
-                    "protocol": flow[4]
-                }
-            })
+    def start_control_stream_thread(self, control_url):
+        """Start control stream"""
+        control_stream_thread = ControlStreamThread(self.domain_name, control_url)
+        control_stream_thread.start()
 
-        # send query to domains
-        query_data = urllib.parse.urlencode(data)
-        req = urllib.request.Request(url, query_data)
-        req.add_header("Content-Type", "application/json")
-        return req
-
-    def writeResponseData(self, response_data):
-        raise NotImplementedError
+    def handle_update_event(self, update_event, callback):
+        """Handle update event received from server"""
+        query_id = update_event["query-id"]
+        response = update_event["response"]
+        query_object = QueryData().get_query_object(domain_name=self.domain_name, domain_query_id=query_id)
+        query_object.result = response
+        update_queries(query_object.query_type)
 
     def run(self):
-        req = self.prepareData()
-        response = urllib.request.urlopen(req)
-        response_data = response.read()
-        self.writeResponseData(response_data)
+        """ Start the update stream thread """
+
+        # Send a request to remote
+        client = self.get_sseclient()
+
+        # handle every received event
+        for event in client.events():
+            if event.event == "application/updatestreamcontrol":
+                control_stream_url = json.loads(event.data)["control-uri"]
+                DomainData()[self.domain_name].control_url = control_stream_url
+            elif event.event == "application/json":
+                update_event = json.loads(event.data)
+                update_thread = Thread(target=self.handle_update_event, args=[update_event, update_queries])
+                update_thread.start()
+            else:
+                raise UnknownEventType(event)
 
 
-class PathQueryThread(QueryThread):
-    def writeResponseData(self, response_data):
-        # Write result to PathQueryData
-        next_hops = json.loads(response_data)
-        path_data = list(zip(self.flows, next_hops))
-        for flow_next_hop in path_data:
-            PathQueryData().addhop(flow_next_hop[0], flow_next_hop[1])
+class ControlStreamThread(Thread):
+    def __init__(self, domain_name, control_url):
+        super(ControlStreamThread, self).__init__()
+        self.domain_name = domain_name
+        self.control_url = control_url
+        ThreadData().add_control_thread(domain_name, self)
+        self.new_requests = Queue()
+        self.new_requests_lock = Lock()
 
+    def get_request(self):
+        self.new_requests_lock.acquire()
+        request = self.new_requests.get()
+        self.new_requests_lock.release()
+        return request
 
-class ResourceQueryThread(QueryThread):
-    def writeResponseData(self, response_data):
-        # TODO: Write result to ResourceQueryData
-        pass
+    def add_requst(self, request):
+        self.new_requests_lock.acquire()
+        self.new_requests.put(request)
+        self.new_requests_lock.release()
+
+    def handle_request(self, request):
+        response = requests.post(self.control_url)
+        # TODO: check response
+
+    def run(self):
+        """Start the control stream thread"""
+        something_to_do = False
+        while not self.new_requests.empty():
+            something_to_do = True
+            request = self.get_request()
+            self.handle_request(request)
+        if something_to_do:
+            pass

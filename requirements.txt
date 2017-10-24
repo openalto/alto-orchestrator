@@ -2,3 +2,5 @@ gunicorn
 falcon
 jsonschema
 pyyaml
+requests
+sseclient-py

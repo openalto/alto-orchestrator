@@ -14,7 +14,7 @@ properties:
     title: The controller-url schema.
     description: The base URL of the controller for doing path query and resource query
     examples:
-    - https://10.0.1.40:8181/api/openalto/adapter/
+    - https://10.0.1.40:8181/api/openalto/unicorn/update-stream
     id: "/properties/controller-url"
   hosts:
     id: "/properties/hosts"

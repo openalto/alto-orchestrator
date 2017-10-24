@@ -4,7 +4,7 @@ import falcon
 from jsonschema import validate
 
 from . import TASKS_SCHEMA, REGISTRY_SCHEMA
-from .data_provider import DomainsData, PathQueryData, ResourceQueryData
+from .data_provider import DomainData, PathQueryData, ResourceQueryData
 from .threads import PathQueryThread, ResourceQueryThread
 
 
@@ -14,7 +14,7 @@ class RegisterEntry(object):
 
     def register(self, info):
         # Store the agent info into db
-        DomainsData().domains[info["domain-name"]] = info
+        DomainData().domains[info["domain-name"]] = info
         return json.dumps({"message": "OK"})
 
     def on_post(self, req, res):
@@ -43,12 +43,12 @@ class TasksEntry(object):
         for flow in self.flows.keys():
             if isBegin:
                 src_ip = flow[0]
-                domain_name = DomainsData().ip2DomainName(src_ip)
+                domain_name = DomainData().ip2DomainName(src_ip)
             else:
                 if PathQueryData().hasFlowFetched(flow):
                     continue
                 ingress_point = PathQueryData().getLastHop(flow)
-                domain_name = DomainsData().ip2DomainName(ingress_point)
+                domain_name = DomainData().ip2DomainName(ingress_point)
             if domain_name not in grouped_flows:
                 grouped_flows[domain_name] = set()
             grouped_flows[domain_name].add(flow)
@@ -113,7 +113,7 @@ class TasksEntry(object):
         for flow in set([flows for flows in grouped_flows.values()]):
             flow_path = PathQueryData().flowsPath[flow]
             for hop in flow_path:
-                domain_name = DomainsData().ip2DomainName(hop)
+                domain_name = DomainData().ip2DomainName(hop)
                 if domain_name not in domains_flows.keys():
                     domains_flows[domain_name] = set()
                 domains_flows[domain_name].add(flow)
@@ -132,8 +132,8 @@ class TasksEntry(object):
         if not PathQueryData().hasFlowFetched(flow):
             return False
         last_hop = PathQueryData().getLastHop(flow)
-        domain_name = DomainsData().ip2DomainName(last_hop)
-        dst_name = DomainsData().ip2DomainName(flow[2])  # flow[2] is dst-ip
+        domain_name = DomainData().ip2DomainName(last_hop)
+        dst_name = DomainData().ip2DomainName(flow[2])  # flow[2] is dst-ip
         return domain_name == dst_name
 
     def on_post(self, req, res):
