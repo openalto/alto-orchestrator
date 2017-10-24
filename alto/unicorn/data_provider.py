@@ -99,6 +99,7 @@ class PathQueryData(metaclass=SingletonType):
     def isFlowReached(self, flow):
         return flow in self.reachedFlow
 
+
 class ResourceQueryData(metaclass=SingletonType):
     def __init__(self):
         super(ResourceQueryData, self).__init__()

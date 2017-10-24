@@ -3,7 +3,7 @@ import json
 import falcon
 from jsonschema import validate
 
-from . import TASKS_SCHEMA
+from . import TASKS_SCHEMA, REGISTRY_SCHEMA
 from .data_provider import DomainsData, PathQueryData, ResourceQueryData
 from .threads import PathQueryThread, ResourceQueryThread
 
@@ -12,15 +12,18 @@ class RegisterEntry(object):
     def __init__(self, config):
         pass
 
-    def register(self, domain, base_url, **params):
+    def register(self, info):
         # Store the agent info into db
-        pass
+        DomainsData().domains[info["domain-name"]] = info
+        return json.dumps({"message": "OK"})
 
     def on_post(self, req, res):
         raw_data = req.stream.read()
         agent_info = json.loads(raw_data.decode('utf-8'))
 
-        feedback = self.register(**agent_info)
+        validate(agent_info, REGISTRY_SCHEMA)
+
+        feedback = self.register(agent_info)
         res.status = falcon.HTTP_200
         res.body = json.dumps(feedback)
 
@@ -101,6 +104,7 @@ class TasksEntry(object):
                 if self.isFlowReached(flow):
                     PathQueryData().addReachedFlow(flow)
             grouped_flows = self.group(isBegin=False)
+            # TODO: flow reach
 
     def _resource_query(self, grouped_flows):
         # the variable contains a dict from every domain to each flow through it
