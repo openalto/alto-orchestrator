@@ -42,6 +42,8 @@ class TasksEntry(object):
                 src_ip = flow[0]
                 domain_name = DomainsData().ip2DomainName(src_ip)
             else:
+                if PathQueryData().hasFlowFetched(flow):
+                    continue
                 ingress_point = PathQueryData().getLastHop(flow)
                 domain_name = DomainsData().ip2DomainName(ingress_point)
             if domain_name not in grouped_flows:
@@ -99,7 +101,6 @@ class TasksEntry(object):
                 if self.isFlowReached(flow):
                     PathQueryData().addReachedFlow(flow)
             grouped_flows = self.group(isBegin=False)
-                    # TODO: flow reach
 
     def _resource_query(self, grouped_flows):
         # the variable contains a dict from every domain to each flow through it
