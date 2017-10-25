@@ -1,4 +1,4 @@
-from .entries import RegisterEntry, TasksEntry
+from alto.unicorn.entries import RegisterEntry, TasksEntry
 
 
 class Routes(object):
@@ -15,12 +15,15 @@ class Routes(object):
     def __contains__(self, item):
         return item in self.obj_map.keys()
 
-    def addRoute(self, url, obj, config=None):
+    def add_route(self, url, obj, config=None):
         if isinstance(obj, type):
-            obj = obj(config)
+            if config:
+                obj = obj(**config)
+            else:
+                obj = obj()
         self.obj_map[url] = obj
 
-    def rmRoute(self, url):
+    def rm_route(self, url):
         self.obj_map.pop(url)
 
 
@@ -29,8 +32,8 @@ routes = Routes()
 
 def set_route(app, config=None):
     # Add your routes here
-    routes.addRoute("/register", RegisterEntry, config)
-    routes.addRoute("/task", TasksEntry)
+    routes.add_route("/register", RegisterEntry, config)
+    routes.add_route("/task", TasksEntry)
 
     for i in routes:
         app.add_route(i, routes[i])

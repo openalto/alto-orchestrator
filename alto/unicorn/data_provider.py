@@ -1,4 +1,7 @@
 from itertools import chain
+from threading import Thread, Lock
+
+
 class SingletonType(type):
     def __call__(cls, *args, **kwargs):
         try:
@@ -17,6 +20,7 @@ class DomainData(metaclass=SingletonType):
             self.control_url = ""
             self.hosts = list()
             self.ingress_point = ""
+            self.lock = Lock()
 
         def get_from_dict(self, dic):
             if "domain_name" in dic:
@@ -50,37 +54,43 @@ class DomainData(metaclass=SingletonType):
         # Else raise KeyError
         return self.domains[item]
 
-    def add(self, domain_name, data):
+    def add(self, domain_name, data, callback=None):
         self.domains[domain_name] = DomainData.Domain()
         self.domains[domain_name].get_from_dict(data)
         for i in data["hosts"]:
             self.ip2domain[i] = domain_name
         for i in data["ingress-points"]:
             self.ip2domain[i] = domain_name
+        if callback:
+            thread = Thread(target=callback, args=[domain_name
+                , self.domains[domain_name]])
+            thread.start()
 
-    def hasIp(self, ip):
+    def has_ip(self, ip):
         if ip in self.ip2domain:
             return True
         else:
             return False
 
-    def ip2DomainName(self, ip):
+    def ip_to_domain_name(self, ip):
         return self.ip2domain[ip]
 
 
 class QueryData(metaclass=SingletonType):
     class Query(object):
         def __init__(self):
-            self.query_id = 0
+            self.query_id = dict()
             self.query_type = ""
             self.query_url = ""
-            self.domain_name = ""
-            self.args = ""
+            self.request = ""
             self.result = ""
 
     def __init__(self):
         super(QueryData, self).__init__()
         self.querys = dict()
+        self.domain_to_client = dict()
+        self.lock = Lock()
+        self.next_client_query_id = 1
 
     def __getitem__(self, item):
         return self.querys[item]
@@ -92,25 +102,32 @@ class QueryData(metaclass=SingletonType):
         for i in self.querys.keys():
             yield i
 
-    def generate_query_id(self, domain_name, domain_query_id):
-        return "%s_%d" % (domain_name, domain_query_id)
+    def add_query_id(self, client_query_id, domain_name, domain_query_id):
+        if client_query_id not in self.querys:
+            self.querys[client_query_id] = QueryData.Query()
+        self.querys[client_query_id].query_id[domain_name] = domain_query_id
+        self.domain_to_client[(domain_name, domain_query_id)] = client_query_id
 
-    def get_query_object(self, domain_name, domain_query_id):
+    def get_query_object(self, domain_name, domain_query_id, client_query_id=None):
         """
         :rtype: QueryData.Query
         """
-        query_id = self.generate_query_id(domain_name, domain_query_id)
-        if query_id in self:
-            return self.querys[query_id]
+        if client_query_id is None:
+            client_query_id = self.domain_to_client[(domain_name, domain_query_id)]
+            return self.querys[client_query_id]
         else:
-            self.querys[query_id] = QueryData.Query()
-            return self.querys[query_id]
+            return self.querys[client_query_id]
+
+    def get_next_client_query_id(self):
+        self.next_client_query_id += 1
+        return self.next_client_query_id - 1
 
 
 class ThreadData(metaclass=SingletonType):
     def __init__(self):
         self.update_stream_threads = dict()
         self.control_stream_threads = dict()
+        self.lock = Lock()
 
     def __contains__(self, item):
         return item in self.update_stream_threads or item in self.control_stream_threads
@@ -136,3 +153,87 @@ class ThreadData(metaclass=SingletonType):
 
     def add_control_thread(self, domain_name, thread):
         self.control_stream_threads[domain_name] = thread
+
+
+class FlowData(metaclass=SingletonType):
+    class Hop:
+        def __init__(self):
+            self.domain_name = None
+            self.ip = None
+
+    class Flow:
+        def __init__(self):
+            self.id = None
+            self.path = []
+            self.content = None
+            self.query_id = None
+
+        def __eq__(self, other):
+            return self.content == other.content
+
+        def get_last_hop(self):
+            if self.path and len(self.path) > 0:
+                return self.path[-1].ip
+            else:
+                return ""
+
+        def has_domain(self, domain_name):
+            for hop in self.path:
+                if hop.domain_name == domain_name:
+                    return True
+            return False
+
+        def delete_path_after_hop(self, domain_name):
+            index = -1
+            for hop in self.path:
+                if hop.domain_name == domain_name:
+                    index = self.path.index(hop)
+            if index != -1:
+                self.path = self.path[:index]
+
+    def __init__(self):
+        self.id_flow = dict()
+        self.content_flow = dict()
+        self.next_id = 1
+        self.lock = Lock()
+
+    def __contains__(self, item):
+        return item in self.id_flow.keys()
+
+    def __iter__(self):
+        for i in self.id_flow.values():
+            yield i
+
+    def get_id(self, flow):
+        self.lock.acquire()
+        if flow in self.content_flow.keys():
+            self.lock.release()
+            return self.content_flow[flow].id
+        else:
+            flow_obj = FlowData.Flow()
+            flow_obj.id = self.next_id
+            self.next_id += 1
+            flow_obj.content = flow
+            self.id_flow[flow_obj.id] = flow_obj
+            self.content_flow[flow] = flow_obj
+            self.lock.release()
+            return flow_obj.id
+
+    def has_id(self, id):
+        return id in self.id_flow.keys()
+
+    def get(self, identifier):
+        """
+        Get flow obj from identifier
+        :param identifier: the identifier could be used to find obj
+        :return: The flow object
+        :rtype: FlowData.Flow
+        """
+        if type(identifier) == "tuple":
+            return self.content_flow[identifier]
+        else:
+            return self.id_flow[id]
+
+
+Flow = FlowData.Flow
+Hop = FlowData.Hop

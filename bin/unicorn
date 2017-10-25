@@ -47,7 +47,7 @@ def main():
         'bind': '%s:%d' % (config.address, config.port)
     }
     app = falcon.API()
-    set_route(app, config)
+    set_route(app, vars(config))
     OrchestratorService(app, options).run()
 
 
