@@ -46,7 +46,7 @@ class TasksEntry(object):
         # Validate input with json schema
         validate(info, TASKS_SCHEMA)
 
-        thread = TasksHandlerThread()
+        thread = TasksHandlerThread(self.tasks)
         thread.start()
 
 

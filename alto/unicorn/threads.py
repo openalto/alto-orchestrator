@@ -6,9 +6,9 @@ from threading import Thread, Lock
 import requests
 from sseclient import SSEClient
 
-from alto.unicorn.data_provider import QueryData, DomainData, ThreadData, FlowData
+from alto.unicorn.data_provider import QueryData, DomainData, ThreadData, FlowData, Hop
 from alto.unicorn.definitions import Definitions
-from alto.unicorn.exceptions import UnknownEventType
+from alto.unicorn.exceptions import UnknownEventType, UnknownIP
 
 
 class UpdateStreamThread(Thread):
@@ -65,7 +65,7 @@ class UpdateStreamThread(Thread):
             flow_obj = FlowData().get(flow)
             if flow_obj.has_domain(self.domain_name):
                 flow_obj.delete_path_after_hop(self.domain_name)
-            hop = FlowData.Hop()
+            hop = Hop()
             hop.domain_name = self.domain_name
             hop.ip = next_hop
             flow_obj.path.append(hop)
@@ -98,7 +98,7 @@ class ControlStreamThread(Thread):
         resp = json.loads(response.text)
 
         if callback:
-            callback(resp, *args)
+            callback(request, resp, *args)
 
     def run(self):
         """Start the control stream thread"""
@@ -114,69 +114,140 @@ class ControlStreamThread(Thread):
 
 
 class TasksHandlerThread(Thread):
-    def __init__(self):
+    def __init__(self, tasks):
         super(TasksHandlerThread, self).__init__()
-        self.flows = None
-        self.path_query_flows = list()
-        self.resource_query_flows = list()
-        self.completed_flows = list()
-        self.path_query_lock = Lock()
-        self.resource_query_lock = Lock()
+        self.flow_ids = list()
+        self.tasks = tasks
+        self.path_query_complete_flow_ids = set()
+
+    def prepare(self):
+        for domain_name in DomainData():
+            control_thread = ThreadData().get_control_thread(domain_name)
+            request_builder = RequestBuilder(
+                Definitions.QueryAction.NEW,
+                Definitions.QueryType.PATH_QUERY_TYPE
+            )
+            request = request_builder.build()
+            control_thread.add_request(request, self.add_query_id, domain_name)
+
+            request_builder = RequestBuilder(
+                Definitions.QueryAction.NEW,
+                Definitions.QueryType.RESOURCE_QUERY_TYPE,
+            )
+            request = request_builder.build()
+            control_thread.add_request(request, self.add_query_id, domain_name)
 
     @staticmethod
-    def group_by_domain_name(flows):
+    def add_query_id(request, response, domain_name):
+        query_id = response["query-id"]
+        QueryData().add_query_id(domain_name, query_id)
+
+    @staticmethod
+    def group_by_domain_name(flow_ids):
         group = dict()
-        for flow in flows:
-            last_hop = flow.get_last_hop()
-            ip = last_hop if last_hop != "" else flow.content[0]  # Source IP / Last hop ip
-            domain_name = DomainData().ip_to_domain_name(ip)
+        for flow_id in flow_ids:
+            flow = FlowData().get(flow_id)
+            last_hop = flow.last_hop
+            ip = last_hop if last_hop != "" else flow.src_ip  # Source IP / Last hop ip
+            domain_name = DomainData().get_domain(ip).domain_name
             if domain_name not in group:
                 group[domain_name] = list()
-            group[domain_name].add(flow)
+            group[domain_name].add(flow_id)
         return group
 
     @staticmethod
-    def group_by_query_id(flows):
+    def group_by_query_id(flow_ids, domain_name):
         group = dict()
-        for flow in flows:
-            if flow.query_id not in group:
-                group[flow.query_id] = list()
-            group[flow.query_id].add(flow)
+        for flow_id in flow_ids:
+            query_id = QueryData().get_query_id(domain_name, flow_id)
+            if query_id not in group.keys():
+                group[query_id] = list()
+            group[query_id].append(flow_id)
         return group
 
-    def path_query_thread(self):
-        while True:
-            if len(self.path_query_flows) > 0:
+    def path_query(self):
+        # Construct flow ids who haven't completed
+        non_complete_flow_ids = []
+        for flow_id in self.flow_ids:
+            if flow_id not in self.path_query_complete_flow_ids:
+                non_complete_flow_ids.append(flow_id)
 
-                # Group path query flows by query id
-                self.path_query_lock.acquire()
-                flows_by_query_id = self.group_by_query_id(self.path_query_flows)
-                self.path_query_flows = list()
-                self.path_query_lock.release()
+        # Group by domain name
+        flow_ids_by_domain_name = self.group_by_domain_name(self.flow_ids)
+        for domain_name in flow_ids_by_domain_name.keys():
+            flow_ids = flow_ids_by_domain_name[domain_name]
+            flow_ids_by_query_id = self.group_by_query_id(flow_ids, domain_name)
+            for query_id in flow_ids_by_query_id.keys():
+                this_flow_ids = flow_ids_by_query_id[query_id]
+                request_builder = RequestBuilder(
+                    Definitions.QueryAction.ADD,
+                    Definitions.QueryType.PATH_QUERY_TYPE,
+                    query_id
+                )
+                for flow_id in this_flow_ids:
+                    flow = FlowData().get(flow_id)
+                    request_builder.add_item(flow, flow.last_hop)
+                request_dict = request_builder.build()
+                ThreadData().get_control_thread(domain_name).add_request(request_dict)
 
-                for query_id in flows_by_query_id.keys():
-                    flows_by_domain_name = self.group_by_domain_name(flows_by_query_id[query_id])
-                    for domain_name in flows_by_domain_name.keys():
-                        flows = flows_by_domain_name[domain_name]
-                        request_builder = RequestBuilder(
-                            Definitions.QueryAction.ADD,
-                            Definitions.QueryType.PATH_QUERY_TYPE,
-                            query_id
-                        )
-                        for flow in flows:
-                            request_builder.add_item(flow, flow.get_last_hop())
-                        request_dict = request_builder.build()
-                        ThreadData().get_control_thread(domain_name).add_request(request_dict)
+    def path_query_callback(self, request, response):
+        for item, hop_ip in list(zip(request["query-desc"], response)):
+            flow_id = int(item["flow"]["flow-id"])
+            hop_domain = DomainData().get_domain(hop_ip).domain_name
+            hop = Hop(hop_domain, hop_ip)
+
+            # Get flow object
+            if not DomainData().has_ip(hop_ip):
+                raise UnknownIP(hop_ip)
+            flow = FlowData().get(flow_id)
+
+            if flow.has_domain(hop_domain):
+                flow.delete_path_after_hop(hop_domain)
+            flow.path.append(hop)
+            if flow.get_last_hop() != "" and DomainData().has_ip(flow.get_last_hop()) and DomainData().get_domain_name(
+                    flow.get_last_hop()) == DomainData().get_domain_name(flow.content[3]):
+                flow.path_query_complete = True
+            self.path_query_complete_flow_ids.add(flow.id)
 
     def resource_query_thread(self):
         # TODO
         pass
 
+    @staticmethod
+    def get_flows(tasks):
+        flow_ids = set()
+        for task in tasks:
+            jobs = task["jobs"]
+            flows_of_jobs = [(
+                i["ip"],
+                i["port"],
+                j["ip"],
+                j["port"],
+                job["protocol"]
+            ) for job in jobs for i in job["potential_srcs"] for j in job["potential_dsts"]]
+            flows_of_jobs = set(flows_of_jobs)
+            flow_ids.union(set([
+                FlowData().get_flow_id(i) for i in flows_of_jobs
+            ]))
+        return list(flow_ids)
+
     def run(self):
-        path_thread = Thread(target=self.path_query_thread, args=[])
-        path_thread.start()
-        resource_thread = Thread(target=self.resource_query_thread, args=[])
-        resource_thread.start()
+        # Get domain query id
+        self.prepare()
+
+        # Get all flows of the set of tasks
+        self.flow_ids = self.get_flows(self.tasks)
+
+        # Add completed flow ids to complete set
+        for flow_id in self.flow_ids:
+            flow = FlowData().get(flow_id)
+            if flow.path_query_complete:
+                self.path_query_complete_flow_ids.add(flow.id)
+
+        # Do path query
+        self.path_query()
+
+        # TODO: waiting for all path query complete
 
 
 class RequestBuilder(object):
@@ -211,36 +282,6 @@ class RequestBuilder(object):
         if self.query_id:
             result["query-id"]: self.query_id
         return result
-
-
-class PrepareThread(Thread):
-    def __init__(self, tasks):
-        super(PrepareThread, self).__init__()
-        self.tasks = tasks
-
-    def run(self):
-        client_path_query_id = QueryData().get_next_client_query_id()
-        for domain_name in DomainData():
-            control_thread = ThreadData().get_control_thread(domain_name)
-            request_builder = RequestBuilder(
-                Definitions.QueryAction.NEW,
-                Definitions.QueryType.PATH_QUERY_TYPE
-            )
-            request = request_builder.build()
-            control_thread.add_request(request, self.add_query_id, domain_name, client_path_query_id)
-        client_resource_query_id = QueryData().get_next_client_query_id()
-        for domain_name in DomainData():
-            control_thread = ThreadData().get_control_thread(domain_name)
-            request_builder = RequestBuilder(
-                Definitions.QueryAction.NEW,
-                Definitions.QueryType.RESOURCE_QUERY_TYPE
-            )
-            request = request_builder.build()
-            control_thread.add_request(request, self.add_query_id, domain_name, client_resource_query_id)
-
-    def add_query_id(self, response, domain_name, client_query_id):
-        domain_query_id = response["query-id"]
-        QueryData().add_query_id(client_query_id, domain_name, domain_query_id)
 
 
 def parse_request(request):

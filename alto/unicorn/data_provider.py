@@ -1,5 +1,4 @@
-from itertools import chain
-from threading import Thread, Lock
+from threading import Lock
 
 
 class SingletonType(type):
@@ -12,129 +11,143 @@ class SingletonType(type):
             return cls.__instance
 
 
+class Domain(object):
+    def __init__(self):
+        self.domain_name = ""
+        self.update_url = ""
+        self.control_url = ""
+        self.hosts = set()
+        self.ingress_points = set()
+        self._lock = Lock()
+
+    def get_from_dict(self, dic):
+        """
+        :type dic: dict
+        """
+        self._lock.acquire()
+        if "domain_name" in dic:
+            self.domain_name = dic["domain_name"]
+        if "domain_update_url" in dic:
+            self.update_url = dic["update-url"]
+        if "domain_control_url" in dic:
+            self.control_url = dic["control-url"]
+        if "hosts" in dic:
+            self.hosts = set(dic["hosts"])
+        if "ingress-points" in dic:
+            self.ingress_points = set(dic["ingress-points"])
+        self._lock.release()
+
+
 class DomainData(metaclass=SingletonType):
-    class Domain(object):
-        def __init__(self):
-            self.domain_name = ""
-            self.update_url = ""
-            self.control_url = ""
-            self.hosts = list()
-            self.ingress_point = ""
-            self.lock = Lock()
-
-        def get_from_dict(self, dic):
-            if "domain_name" in dic:
-                self.domain_name = dic["domain_name"]
-            if "domain_update_url" in dic:
-                self.update_url = dic["update-url"]
-            if "domain_control_url" in dic:
-                self.control_url = dic["control-url"]
-            if "hosts" in dic:
-                self.hosts = dic["hosts"]
-            if "ingress-point" in dic:
-                self.ingress_point = dic["ingress-point"]
-
     def __init__(self):
         super(DomainData, self).__init__()
         # domain name -> Domain object
-        self.domains = {}
+        self._domains = {}
 
         # IP -> domain name
-        self.ip2domain = {}
+        self._ip2domain = {}
 
     def __iter__(self):
-        for i in self.domains.keys():
+        for i in self._domains.keys():
             yield i
 
-    def __contains__(self, item):
-        return item in self.domains
-
     def __getitem__(self, item):
-        # If exist, return element
-        # Else raise KeyError
-        return self.domains[item]
+        return self._domains[item]
 
-    def add(self, domain_name, data, callback=None):
-        self.domains[domain_name] = DomainData.Domain()
-        self.domains[domain_name].get_from_dict(data)
+    def add(self, domain_name, data):
+        """
+        :type domain_name: str
+        :type data: dict
+        """
+        domain = Domain()
+        self._domains[domain_name] = domain
+        domain.get_from_dict(data)
         for i in data["hosts"]:
-            self.ip2domain[i] = domain_name
+            self._ip2domain[i] = domain
         for i in data["ingress-points"]:
-            self.ip2domain[i] = domain_name
-        if callback:
-            thread = Thread(target=callback, args=[domain_name
-                , self.domains[domain_name]])
-            thread.start()
+            self._ip2domain[i] = domain
 
     def has_ip(self, ip):
-        if ip in self.ip2domain:
-            return True
-        else:
-            return False
+        """
+        :rtype: bool
+        """
+        return ip in self._ip2domain
 
-    def ip_to_domain_name(self, ip):
-        return self.ip2domain[ip]
+    def get_domain(self, ip):
+        """
+        :rtype: Domain
+        """
+        return self._ip2domain[ip]
+
+
+class Query(object):
+    def __init__(self):
+        self.domain_name = ""
+        self.query_id = 0
+        self.query_type = ""
+        self.query_url = ""
+        self.request = ""
+        self.response = ""
 
 
 class QueryData(metaclass=SingletonType):
-    class Query(object):
-        def __init__(self):
-            self.query_id = dict()
-            self.query_type = ""
-            self.query_url = ""
-            self.request = ""
-            self.result = ""
+    """
+    Basic Idea: (domain_name, query_id) -> query object
+    """
 
     def __init__(self):
         super(QueryData, self).__init__()
-        self.querys = dict()
-        self.domain_to_client = dict()
-        self.lock = Lock()
-        self.next_client_query_id = 1
 
-    def __getitem__(self, item):
-        return self.querys[item]
+        # Query id -> Query Object
+        self._querys = dict()
 
-    def __contains__(self, item):
-        return item in self.querys
+        # (domain name, flow id) -> Query
+        self._query_map = dict()
 
-    def __iter__(self):
-        for i in self.querys.keys():
-            yield i
+        self._lock = Lock()
 
-    def add_query_id(self, client_query_id, domain_name, domain_query_id):
-        if client_query_id not in self.querys:
-            self.querys[client_query_id] = QueryData.Query()
-        self.querys[client_query_id].query_id[domain_name] = domain_query_id
-        self.domain_to_client[(domain_name, domain_query_id)] = client_query_id
-
-    def get_query_object(self, domain_name, domain_query_id, client_query_id=None):
+    def add_query_id(self, domain_name, query_id):
         """
+        :type domain_name: str
+        :type query_id: int
+        """
+        self._lock.acquire()
+        query = Query()
+        query.query_id = query_id
+        query.domain_name = domain_name
+        self._querys[(domain_name, query_id)] = query
+        self._lock.release()
+
+    def get_query(self, domain_name=None, query_id=None):
+        """
+        :type domain_name: str
+        :type query_id: int
         :rtype: QueryData.Query
         """
-        if client_query_id is None:
-            client_query_id = self.domain_to_client[(domain_name, domain_query_id)]
-            return self.querys[client_query_id]
-        else:
-            return self.querys[client_query_id]
+        return self._querys[(domain_name, query_id)]
 
-    def get_next_client_query_id(self):
-        self.next_client_query_id += 1
-        return self.next_client_query_id - 1
+    def add_flow_query(self, flow, domain_name, query_id):
+        """
+        :type flow: Flow
+        :type domain_name: str
+        :type query_id: int
+        """
+        query_obj = QueryData().get_query(domain_name, query_id)
+        self._query_map[(domain_name, flow.id)] = query_obj
+
+    def get_query_id(self, domain_name, flow_id):
+        """
+        :type domain_name: str
+        :type flow_id: int
+        """
+        return self._query_map[(domain_name, flow_id)].query_id
 
 
 class ThreadData(metaclass=SingletonType):
     def __init__(self):
         self.update_stream_threads = dict()
         self.control_stream_threads = dict()
-        self.lock = Lock()
-
-    def __contains__(self, item):
-        return item in self.update_stream_threads or item in self.control_stream_threads
-
-    def __iter__(self):
-        for i in chain(self.update_stream_threads.values(), self.control_stream_threads.values()):
-            yield i
+        self._lock = Lock()
 
     def has_update_thread(self, domain_name):
         return domain_name in self.update_stream_threads
@@ -155,72 +168,87 @@ class ThreadData(metaclass=SingletonType):
         self.control_stream_threads[domain_name] = thread
 
 
+class Hop:
+    def __init__(self, domain_name=None, ip=None):
+        self.domain_name = domain_name
+        self.ip = ip
+
+
+class Flow:
+    def __init__(self):
+        self.id = 0
+        self.path = []
+        self.src_ip = None
+        self.dst_ip = None
+        self.src_port = None
+        self.dst_port = None
+        self.protocol = None
+        self.path_query_complete = False
+
+    @property
+    def last_hop(self):
+        if self.path and len(self.path) > 0:
+            return self.path[-1].ip
+        else:
+            return ""
+
+    def has_domain(self, domain_name):
+        for hop in self.path:
+            if hop.domain_name == domain_name:
+                return True
+        return False
+
+    def delete_path_after_hop(self, domain_name):
+        index = -1
+        for hop in self.path:
+            if hop.domain_name == domain_name:
+                index = self.path.index(hop)
+        if index != -1:
+            self.path = self.path[:index]
+
+    @property
+    def flow_tuple(self):
+        return self.src_ip, self.src_port, self.dst_ip, self.dst_port, self.protocol
+
+
 class FlowData(metaclass=SingletonType):
-    class Hop:
-        def __init__(self):
-            self.domain_name = None
-            self.ip = None
-
-    class Flow:
-        def __init__(self):
-            self.id = None
-            self.path = []
-            self.content = None
-            self.query_id = None
-
-        def __eq__(self, other):
-            return self.content == other.content
-
-        def get_last_hop(self):
-            if self.path and len(self.path) > 0:
-                return self.path[-1].ip
-            else:
-                return ""
-
-        def has_domain(self, domain_name):
-            for hop in self.path:
-                if hop.domain_name == domain_name:
-                    return True
-            return False
-
-        def delete_path_after_hop(self, domain_name):
-            index = -1
-            for hop in self.path:
-                if hop.domain_name == domain_name:
-                    index = self.path.index(hop)
-            if index != -1:
-                self.path = self.path[:index]
+    """
+    Basic Idea: (5-tuple flow) -> flow obj
+    flow id -> flow obj
+    """
 
     def __init__(self):
-        self.id_flow = dict()
-        self.content_flow = dict()
-        self.next_id = 1
-        self.lock = Lock()
+        self._id_flow = dict()
+        self._content_flow = dict()
+        self._next_id = 1
+        self._lock = Lock()
 
-    def __contains__(self, item):
-        return item in self.id_flow.keys()
-
-    def __iter__(self):
-        for i in self.id_flow.values():
-            yield i
-
-    def get_id(self, flow):
-        self.lock.acquire()
-        if flow in self.content_flow.keys():
-            self.lock.release()
-            return self.content_flow[flow].id
+    def get_flow_id(self, flow):
+        self._lock.acquire()
+        if flow in self._content_flow.keys():
+            self._lock.release()
+            return self._content_flow[flow].id
         else:
-            flow_obj = FlowData.Flow()
-            flow_obj.id = self.next_id
-            self.next_id += 1
-            flow_obj.content = flow
-            self.id_flow[flow_obj.id] = flow_obj
-            self.content_flow[flow] = flow_obj
-            self.lock.release()
+            # Create a new flow
+            flow_obj = Flow()
+            flow_obj.id = self._next_id
+            flow_obj.src_ip = flow[0]
+            flow_obj.src_port = flow[1]
+            flow_obj.dst_ip = flow[2]
+            flow_obj.dst_port = flow[3]
+            flow_obj.protocol = flow[4]
+
+            # Add index to FlowData()
+            self._id_flow[flow_obj.id] = flow_obj
+            self._content_flow[flow] = flow_obj
+
+            # End
+            self._lock.release()
+            self._next_id += 1
             return flow_obj.id
 
     def has_id(self, id):
-        return id in self.id_flow.keys()
+        return id in self._id_flow.keys()
 
     def get(self, identifier):
         """
@@ -230,10 +258,6 @@ class FlowData(metaclass=SingletonType):
         :rtype: FlowData.Flow
         """
         if type(identifier) == "tuple":
-            return self.content_flow[identifier]
+            return self._content_flow[identifier]
         else:
-            return self.id_flow[id]
-
-
-Flow = FlowData.Flow
-Hop = FlowData.Hop
+            return self._id_flow[id]
