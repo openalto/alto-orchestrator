@@ -165,15 +165,20 @@ class TasksHandlerThread(Thread):
             group[query_id].append(flow_id)
         return group
 
-    def path_query(self):
+    def get_non_reach_flow_ids(self, flow_ids):
         # Construct flow ids who haven't completed
         non_complete_flow_ids = []
-        for flow_id in self.flow_ids:
+        for flow_id in flow_ids:
             if flow_id not in self.path_query_complete_flow_ids:
                 non_complete_flow_ids.append(flow_id)
+        return non_complete_flow_ids
+
+    def path_query(self, query_flow_ids):
+        # Construct flow ids who haven't completed
+        non_complete_flow_ids = self.get_non_reach_flow_ids(query_flow_ids)
 
         # Group by domain name
-        flow_ids_by_domain_name = self.group_by_domain_name(self.flow_ids)
+        flow_ids_by_domain_name = self.group_by_domain_name(non_complete_flow_ids)
         for domain_name in flow_ids_by_domain_name.keys():
             flow_ids = flow_ids_by_domain_name[domain_name]
             flow_ids_by_query_id = self.group_by_query_id(flow_ids, domain_name)
@@ -188,9 +193,11 @@ class TasksHandlerThread(Thread):
                     flow = FlowData().get(flow_id)
                     request_builder.add_item(flow, flow.last_hop)
                 request_dict = request_builder.build()
-                ThreadData().get_control_thread(domain_name).add_request(request_dict)
+                ThreadData().get_control_thread(domain_name).add_request(request_dict,
+                                                                         callback=self.path_query_callback)
 
     def path_query_callback(self, request, response):
+        to_query_flow_ids = []
         for item, hop_ip in list(zip(request["query-desc"], response)):
             flow_id = int(item["flow"]["flow-id"])
             hop_domain = DomainData().get_domain(hop_ip).domain_name
@@ -201,13 +208,21 @@ class TasksHandlerThread(Thread):
                 raise UnknownIP(hop_ip)
             flow = FlowData().get(flow_id)
 
+            # If domain already in the flow, delete hop after it (including it)
             if flow.has_domain(hop_domain):
                 flow.delete_path_after_hop(hop_domain)
             flow.path.append(hop)
-            if flow.get_last_hop() != "" and DomainData().has_ip(flow.get_last_hop()) and DomainData().get_domain_name(
-                    flow.get_last_hop()) == DomainData().get_domain_name(flow.content[3]):
+
+            # Judge if the flow has reached the destination
+            if flow.get_last_hop() != "" and DomainData().has_ip(flow.get_last_hop()) and DomainData().get_domain(
+                    flow.get_last_hop()).domain_name == DomainData().get_domain(flow.dst_ip).domain_name:
                 flow.path_query_complete = True
-            self.path_query_complete_flow_ids.add(flow.id)
+                self.path_query_complete_flow_ids.add(flow.id)
+
+            if flow.path_query_complete is not True:
+                to_query_flow_ids.append(flow.id)
+
+        self.path_query(to_query_flow_ids)
 
     def resource_query_thread(self):
         # TODO
