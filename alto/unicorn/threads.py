@@ -32,7 +32,7 @@ class UpdateStreamThread(Thread):
         """Handle update event received from server"""
         query_id = update_event["query-id"]
         response = update_event["response"]
-        query_obj = QueryData().get_query_object(domain_name=self.domain_name, domain_query_id=query_id)
+        query_obj = QueryData().get(query_id=query_id)
         query_obj.result = response
         callback(query_obj)
 
@@ -44,10 +44,10 @@ class UpdateStreamThread(Thread):
 
         # handle every received event
         for event in client.events():
-            if event.event == "application/updatestreamcontrol":
+            if event.event == Definitions.EventType.UPDATE_STREAM:
                 control_stream_url = json.loads(event.data)["control-uri"]
                 DomainData()[self.domain_name].control_url = control_stream_url
-            elif event.event == "application/json":
+            elif event.event == Definitions.EventType.JSON:
                 update_event = json.loads(event.data)
                 update_thread = Thread(target=self.handle_update_event, args=[update_event, self.update_queries])
                 update_thread.start()
@@ -110,7 +110,7 @@ class ControlStreamThread(Thread):
                 self.handle_request(request, callback, args)
             if something_to_do:
                 pass
-            time.sleep(0.3)
+            time.sleep(Definitions.POLL_TIME)
 
 
 class TasksHandlerThread(Thread):
@@ -119,28 +119,27 @@ class TasksHandlerThread(Thread):
         self.flow_ids = list()
         self.tasks = tasks
         self.path_query_complete_flow_ids = set()
+        self._path_query_id = QueryData().gen_query_id()
+        self._resource_query_id = QueryData().gen_query_id()
 
     def prepare(self):
         for domain_name in DomainData():
             control_thread = ThreadData().get_control_thread(domain_name)
             request_builder = RequestBuilder(
-                Definitions.QueryAction.NEW,
-                Definitions.QueryType.PATH_QUERY_TYPE
+                action=Definitions.QueryAction.NEW,
+                query_type=Definitions.QueryType.PATH_QUERY_TYPE,
+                query_id=self._path_query_id
             )
             request = request_builder.build()
-            control_thread.add_request(request, self.add_query_id, domain_name)
+            control_thread.add_request(request)
 
             request_builder = RequestBuilder(
-                Definitions.QueryAction.NEW,
-                Definitions.QueryType.RESOURCE_QUERY_TYPE,
+                action=Definitions.QueryAction.NEW,
+                query_type=Definitions.QueryType.RESOURCE_QUERY_TYPE,
+                query_id=self._resource_query_id
             )
             request = request_builder.build()
-            control_thread.add_request(request, self.add_query_id, domain_name)
-
-    @staticmethod
-    def add_query_id(request, response, domain_name):
-        query_id = response["query-id"]
-        QueryData().add_query_id(domain_name, query_id)
+            control_thread.add_request(request)
 
     @staticmethod
     def group_by_domain_name(flow_ids):
@@ -156,10 +155,10 @@ class TasksHandlerThread(Thread):
         return group
 
     @staticmethod
-    def group_by_query_id(flow_ids, domain_name):
+    def group_by_query_id(flow_ids):
         group = dict()
         for flow_id in flow_ids:
-            query_id = QueryData().get_query_id(domain_name, flow_id)
+            query_id = FlowData().get(flow_id).path_query_id
             if query_id not in group.keys():
                 group[query_id] = list()
             group[query_id].append(flow_id)
@@ -181,7 +180,7 @@ class TasksHandlerThread(Thread):
         flow_ids_by_domain_name = self.group_by_domain_name(non_complete_flow_ids)
         for domain_name in flow_ids_by_domain_name.keys():
             flow_ids = flow_ids_by_domain_name[domain_name]
-            flow_ids_by_query_id = self.group_by_query_id(flow_ids, domain_name)
+            flow_ids_by_query_id = self.group_by_query_id(flow_ids)
             for query_id in flow_ids_by_query_id.keys():
                 this_flow_ids = flow_ids_by_query_id[query_id]
                 request_builder = RequestBuilder(
@@ -214,8 +213,8 @@ class TasksHandlerThread(Thread):
             flow.path.append(hop)
 
             # Judge if the flow has reached the destination
-            if flow.get_last_hop() != "" and DomainData().has_ip(flow.get_last_hop()) and DomainData().get_domain(
-                    flow.get_last_hop()).domain_name == DomainData().get_domain(flow.dst_ip).domain_name:
+            if flow.last_hop != "" and DomainData().has_ip(flow.last_hop()) and DomainData().get_domain(
+                    flow.last_hop).domain_name == DomainData().get_domain(flow.dst_ip).domain_name:
                 flow.path_query_complete = True
                 self.path_query_complete_flow_ids.add(flow.id)
 
@@ -253,6 +252,12 @@ class TasksHandlerThread(Thread):
         # Get all flows of the set of tasks
         self.flow_ids = self.get_flows(self.tasks)
 
+        # Add every flow id to Query data store
+        for flow_id in self.flow_ids:
+            flow_obj = FlowData().get(flow_id)
+            flow_obj.set_path_query_id(self._path_query_id)
+            flow_obj.set_resource_query_id(self._resource_query_id)
+
         # Add completed flow ids to complete set
         for flow_id in self.flow_ids:
             flow = FlowData().get(flow_id)
@@ -260,9 +265,13 @@ class TasksHandlerThread(Thread):
                 self.path_query_complete_flow_ids.add(flow.id)
 
         # Do path query
-        self.path_query()
+        self.path_query(self.flow_ids)
 
-        # TODO: waiting for all path query complete
+        # waiting for all path query complete
+        while len(self.path_query_complete_flow_ids) < len(self.flow_ids):
+            time.sleep(Definitions.POLL_TIME)
+
+        self.resource_query_thread()
 
 
 class RequestBuilder(object):
@@ -277,11 +286,11 @@ class RequestBuilder(object):
         item = {
             "flow": {
                 "flow-id": flow.id,
-                "src-ip": flow.content[0],
-                "src-port": flow.content[1],
-                "dst-ip": flow.content[2],
-                "dst-port": flow.content[3],
-                "protocol": flow.content[4]
+                "src-ip": flow.src_ip,
+                "src-port": flow.src_port,
+                "dst-ip": flow.dst_ip,
+                "dst-port": flow.dst_port,
+                "protocol": flow.protocol
             }
         }
         if ingress_point:

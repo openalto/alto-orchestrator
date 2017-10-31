@@ -35,10 +35,6 @@ class TasksEntry(object):
         self.task2Jobs = dict()
         self.flows = dict()
 
-    def handle_task(self, task):
-        # TODO
-        pass
-
     def on_post(self, req, res):
         raw_data = req.stream.read()
         info = json.loads(raw_data.decode('utf-8'))

@@ -82,7 +82,6 @@ class DomainData(metaclass=SingletonType):
 
 class Query(object):
     def __init__(self):
-        self.domain_name = ""
         self.query_id = 0
         self.query_type = ""
         self.query_url = ""
@@ -99,48 +98,39 @@ class QueryData(metaclass=SingletonType):
         super(QueryData, self).__init__()
 
         # Query id -> Query Object
-        self._querys = dict()
+        self._queries = dict()
 
-        # (domain name, flow id) -> Query
-        self._query_map = dict()
+        self._next_id = 1
 
         self._lock = Lock()
 
-    def add_query_id(self, domain_name, query_id):
+    def gen_query_id(self):
         """
-        :type domain_name: str
+        Generate a query id and add it to data store
+        :rtype: int
+        """
+        self._add_query_id(self._next_id)
+        with self._lock:
+            self._next_id += 1
+        return self._next_id - 1
+
+    def _add_query_id(self, query_id):
+        """
         :type query_id: int
         """
-        self._lock.acquire()
-        query = Query()
-        query.query_id = query_id
-        query.domain_name = domain_name
-        self._querys[(domain_name, query_id)] = query
-        self._lock.release()
+        with self._lock:
+            query = Query()
+            query.query_id = query_id
+            self._queries[query_id] = query
 
-    def get_query(self, domain_name=None, query_id=None):
+    def get(self, query_id=None):
         """
-        :type domain_name: str
         :type query_id: int
-        :rtype: QueryData.Query
+        :rtype: Query
         """
-        return self._querys[(domain_name, query_id)]
-
-    def add_flow_query(self, flow, domain_name, query_id):
-        """
-        :type flow: Flow
-        :type domain_name: str
-        :type query_id: int
-        """
-        query_obj = QueryData().get_query(domain_name, query_id)
-        self._query_map[(domain_name, flow.id)] = query_obj
-
-    def get_query_id(self, domain_name, flow_id):
-        """
-        :type domain_name: str
-        :type flow_id: int
-        """
-        return self._query_map[(domain_name, flow_id)].query_id
+        if query_id is not None:
+            return self._queries[query_id]
+        raise KeyError
 
 
 class ThreadData(metaclass=SingletonType):
@@ -183,7 +173,10 @@ class Flow:
         self.src_port = None
         self.dst_port = None
         self.protocol = None
+        self._path_query_id = None
+        self._resource_query_id = None
         self.path_query_complete = False
+        self._lock = Lock()
 
     @property
     def last_hop(self):
@@ -209,6 +202,22 @@ class Flow:
     @property
     def flow_tuple(self):
         return self.src_ip, self.src_port, self.dst_ip, self.dst_port, self.protocol
+
+    @property
+    def path_query_id(self):
+        return self._path_query_id
+
+    @property
+    def resource_query_id(self):
+        return self._resource_query_id
+
+    def set_path_query_id(self, query_id):
+        with self._lock:
+            self._path_query_id = query_id
+
+    def set_resource_query_id(self, query_id):
+        with self._lock:
+            self._resource_query_id = query_id
 
 
 class FlowData(metaclass=SingletonType):
@@ -255,7 +264,7 @@ class FlowData(metaclass=SingletonType):
         Get flow obj from identifier
         :param identifier: the identifier could be used to find obj
         :return: The flow object
-        :rtype: FlowData.Flow
+        :rtype: Flow
         """
         if type(identifier) == "tuple":
             return self._content_flow[identifier]
