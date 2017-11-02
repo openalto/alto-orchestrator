@@ -3,7 +3,7 @@ import json
 import falcon
 from jsonschema import validate
 
-from alto.unicorn.data_provider import DomainData, ThreadData
+from alto.unicorn.data_provider import DomainData, ThreadData, Domain
 from alto.unicorn.schemas import TASKS_SCHEMA, REGISTRY_SCHEMA
 from alto.unicorn.threads import TasksHandlerThread, UpdateStreamThread
 
@@ -14,8 +14,8 @@ class RegisterEntry(object):
 
     def register(self, info):
         # Store the agent info into db
-        DomainData().add(info["domain_name"], info, callback=connect_to_server)
-        return json.dumps({"message": "OK"})
+        DomainData().add(info["domain-name"], info, callback=connect_to_server)
+        return {"message": "OK"}
 
     def on_post(self, req, res):
         raw_data = req.stream.read()
@@ -50,8 +50,9 @@ def connect_to_server(domain_name, domain_data):
     """
     :param domain_name: The name of the domain to connect
     :param domain_data: The data of the domain
-    :type domain_data: DomainData.Domain
+    :type domain_data: Domain
     """
     if not ThreadData().has_control_thread(domain_name):
+        print(domain_data.update_url)
         thread = UpdateStreamThread(domain_name, domain_data.update_url)
         thread.start()

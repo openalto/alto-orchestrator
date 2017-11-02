@@ -24,18 +24,18 @@ class Domain(object):
         """
         :type dic: dict
         """
-        self._lock.acquire()
-        if "domain_name" in dic:
-            self.domain_name = dic["domain_name"]
-        if "domain_update_url" in dic:
-            self.update_url = dic["update-url"]
-        if "domain_control_url" in dic:
-            self.control_url = dic["control-url"]
-        if "hosts" in dic:
-            self.hosts = set(dic["hosts"])
-        if "ingress-points" in dic:
-            self.ingress_points = set(dic["ingress-points"])
-        self._lock.release()
+        print(dic)
+        with self._lock:
+            if "domain_name" in dic:
+                self.domain_name = dic["domain_name"]
+            if "update-url" in dic:
+                self.update_url = dic["update-url"]
+            if "control-url" in dic:
+                self.control_url = dic["control-url"]
+            if "hosts" in dic:
+                self.hosts = set(dic["hosts"])
+            if "ingress-points" in dic:
+                self.ingress_points = set(dic["ingress-points"])
 
 
 class DomainData(metaclass=SingletonType):
@@ -54,7 +54,7 @@ class DomainData(metaclass=SingletonType):
     def __getitem__(self, item):
         return self._domains[item]
 
-    def add(self, domain_name, data):
+    def add(self, domain_name, data, callback=None):
         """
         :type domain_name: str
         :type data: dict
@@ -66,6 +66,9 @@ class DomainData(metaclass=SingletonType):
             self._ip2domain[i] = domain
         for i in data["ingress-points"]:
             self._ip2domain[i] = domain
+
+        if callback:
+            callback(domain_name, domain)
 
     def has_ip(self, ip):
         """
