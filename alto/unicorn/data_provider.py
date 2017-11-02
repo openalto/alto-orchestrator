@@ -24,7 +24,6 @@ class Domain(object):
         """
         :type dic: dict
         """
-        print(dic)
         with self._lock:
             if "domain_name" in dic:
                 self.domain_name = dic["domain_name"]

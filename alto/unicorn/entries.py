@@ -53,6 +53,5 @@ def connect_to_server(domain_name, domain_data):
     :type domain_data: Domain
     """
     if not ThreadData().has_control_thread(domain_name):
-        print(domain_data.update_url)
         thread = UpdateStreamThread(domain_name, domain_data.update_url)
         thread.start()

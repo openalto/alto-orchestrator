@@ -39,6 +39,9 @@ class UpdateStreamThread(Thread):
     def run(self):
         """ Start the update stream thread """
 
+        # Wait some time to let server up
+        time.sleep(Definitions.WAIT_TIME_AFTER_REG)
+
         # Send a request to remote
         client = self.get_sseclient()
 

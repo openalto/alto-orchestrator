@@ -16,3 +16,4 @@ class Definitions():
 
     MAX_WAITING_FLOWS = 10
     POLL_TIME = 0.5
+    WAIT_TIME_AFTER_REG = 2
