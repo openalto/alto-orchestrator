@@ -3,7 +3,7 @@ import time
 from queue import Queue
 from threading import Thread, Lock
 
-import requests
+import urllib3
 from sseclient import SSEClient
 
 from alto.unicorn.data_provider import QueryData, DomainData, ThreadData, FlowData, Hop
@@ -20,7 +20,8 @@ class UpdateStreamThread(Thread):
 
     def get_sseclient(self):
         """Get SSEClient from url"""
-        response = requests.get(self.update_url, stream=True)
+        http = urllib3.PoolManager()
+        response = http.request("GET", self.update_url, preload_content=False)
         return SSEClient(response)
 
     def start_control_stream_thread(self, control_url):
@@ -48,7 +49,7 @@ class UpdateStreamThread(Thread):
         # handle every received event
         for event in client.events():
             if event.event == Definitions.EventType.UPDATE_STREAM:
-                control_stream_url = json.loads(event.data)["control-uri"]
+                control_stream_url = event.data
                 DomainData()[self.domain_name].control_url = control_stream_url
             elif event.event == Definitions.EventType.JSON:
                 update_event = json.loads(event.data)
