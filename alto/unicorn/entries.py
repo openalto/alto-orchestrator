@@ -13,6 +13,11 @@ class RegisterEntry(object):
         pass
 
     def register(self, info):
+        # If the domain is already exists
+        if info["domain-name"] in DomainData():
+            pass
+            # TODO
+
         # Store the agent info into db
         DomainData().add(info["domain-name"], info, callback=connect_to_server)
         return {"message": "OK"}

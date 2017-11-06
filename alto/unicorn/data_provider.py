@@ -1,5 +1,7 @@
 from threading import Lock
 
+from alto.unicorn.data_model import Domain, Query, Flow
+
 
 class SingletonType(type):
     def __call__(cls, *args, **kwargs):
@@ -9,32 +11,6 @@ class SingletonType(type):
             cls.__instance = super(SingletonType, cls).__call__(
                 *args, **kwargs)
             return cls.__instance
-
-
-class Domain(object):
-    def __init__(self):
-        self.domain_name = ""
-        self.update_url = ""
-        self.control_url = ""
-        self.hosts = set()
-        self.ingress_points = set()
-        self._lock = Lock()
-
-    def get_from_dict(self, dic):
-        """
-        :type dic: dict
-        """
-        with self._lock:
-            if "domain_name" in dic:
-                self.domain_name = dic["domain_name"]
-            if "update-url" in dic:
-                self.update_url = dic["update-url"]
-            if "control-url" in dic:
-                self.control_url = dic["control-url"]
-            if "hosts" in dic:
-                self.hosts = set(dic["hosts"])
-            if "ingress-points" in dic:
-                self.ingress_points = set(dic["ingress-points"])
 
 
 class DomainData(metaclass=SingletonType):
@@ -51,6 +27,9 @@ class DomainData(metaclass=SingletonType):
             yield i
 
     def __getitem__(self, item):
+        """
+        :rtype: Domain
+        """
         return self._domains[item]
 
     def add(self, domain_name, data, callback=None):
@@ -82,18 +61,9 @@ class DomainData(metaclass=SingletonType):
         return self._ip2domain[ip]
 
 
-class Query(object):
-    def __init__(self):
-        self.query_id = 0
-        self.query_type = ""
-        self.query_url = ""
-        self.request = ""
-        self.response = ""
-
-
 class QueryData(metaclass=SingletonType):
     """
-    Basic Idea: (domain_name, query_id) -> query object
+    Basic Idea: path query_id -> query object
     """
 
     def __init__(self):
@@ -121,8 +91,7 @@ class QueryData(metaclass=SingletonType):
         :type query_id: int
         """
         with self._lock:
-            query = Query()
-            query.query_id = query_id
+            query = Query(query_id)
             self._queries[query_id] = query
 
     def get(self, query_id=None):
@@ -137,89 +106,58 @@ class QueryData(metaclass=SingletonType):
 
 class ThreadData(metaclass=SingletonType):
     def __init__(self):
-        self.update_stream_threads = dict()
-        self.control_stream_threads = dict()
+        self._update_stream_threads = dict()
+        self._control_stream_threads = dict()
+        self._task_handler_threads = dict()
         self._lock = Lock()
 
     def has_update_thread(self, domain_name):
-        return domain_name in self.update_stream_threads
+        return domain_name in self._update_stream_threads
 
     def has_control_thread(self, domain_name):
-        return domain_name in self.control_stream_threads
+        return domain_name in self._control_stream_threads
+
+    def has_task_handler_thread(self, query_id):
+        return query_id in self._task_handler_threads
 
     def get_update_thread(self, domain_name):
-        return self.update_stream_threads[domain_name]
+        return self._update_stream_threads[domain_name]
 
     def get_control_thread(self, domain_name):
-        return self.control_stream_threads[domain_name]
+        return self._control_stream_threads[domain_name]
+
+    def get_task_handler_thread(self, query_id):
+        return self._task_handler_threads[query_id]
 
     def add_update_thread(self, domain_name, thread):
-        self.update_stream_threads[domain_name] = thread
+        self.remove_update_thread(domain_name)
+        with self._lock:
+            self._update_stream_threads[domain_name] = thread
 
     def add_control_thread(self, domain_name, thread):
-        self.control_stream_threads[domain_name] = thread
-
-
-class Hop:
-    def __init__(self, domain_name=None, ip=None):
-        self.domain_name = domain_name
-        self.ip = ip
-
-
-class Flow:
-    def __init__(self):
-        self.id = 0
-        self.path = []
-        self.src_ip = None
-        self.dst_ip = None
-        self.src_port = None
-        self.dst_port = None
-        self.protocol = None
-        self._path_query_id = None
-        self._resource_query_id = None
-        self.path_query_complete = False
-        self._lock = Lock()
-
-    @property
-    def last_hop(self):
-        if self.path and len(self.path) > 0:
-            return self.path[-1].ip
-        else:
-            return ""
-
-    def has_domain(self, domain_name):
-        for hop in self.path:
-            if hop.domain_name == domain_name:
-                return True
-        return False
-
-    def delete_path_after_hop(self, domain_name):
-        index = -1
-        for hop in self.path:
-            if hop.domain_name == domain_name:
-                index = self.path.index(hop)
-        if index != -1:
-            self.path = self.path[:index]
-
-    @property
-    def flow_tuple(self):
-        return self.src_ip, self.src_port, self.dst_ip, self.dst_port, self.protocol
-
-    @property
-    def path_query_id(self):
-        return self._path_query_id
-
-    @property
-    def resource_query_id(self):
-        return self._resource_query_id
-
-    def set_path_query_id(self, query_id):
+        self.remove_control_thread(domain_name)
         with self._lock:
-            self._path_query_id = query_id
+            self._control_stream_threads[domain_name] = thread
 
-    def set_resource_query_id(self, query_id):
+    def add_task_handler_thread(self, query_id, thread):
+        self.remove_task_handler_thread(query_id)
         with self._lock:
-            self._resource_query_id = query_id
+            self._task_handler_threads[query_id] = thread
+
+    def remove_update_thread(self, domain_name):
+        if self.has_update_thread(domain_name):
+            with self._lock:
+                del self._update_stream_threads[domain_name]
+
+    def remove_control_thread(self, domain_name):
+        if self.has_control_thread(domain_name):
+            with self._lock:
+                del self._control_stream_threads[domain_name]
+
+    def remove_task_handler_thread(self, query_id):
+        if self.has_task_handler_thread(query_id):
+            with self._lock:
+                del self._task_handler_threads[query_id]
 
 
 class FlowData(metaclass=SingletonType):
@@ -241,21 +179,15 @@ class FlowData(metaclass=SingletonType):
             return self._content_flow[flow].id
         else:
             # Create a new flow
-            flow_obj = Flow()
-            flow_obj.id = self._next_id
-            flow_obj.src_ip = flow[0]
-            flow_obj.src_port = flow[1]
-            flow_obj.dst_ip = flow[2]
-            flow_obj.dst_port = flow[3]
-            flow_obj.protocol = flow[4]
+            flow_obj = Flow(self._next_id, flow[0], flow[1], flow[2], flow[3], flow[4])
 
             # Add index to FlowData()
             self._id_flow[flow_obj.id] = flow_obj
             self._content_flow[flow] = flow_obj
 
             # End
-            self._lock.release()
             self._next_id += 1
+            self._lock.release()
             return flow_obj.id
 
     def has_id(self, id):
@@ -272,3 +204,19 @@ class FlowData(metaclass=SingletonType):
             return self._content_flow[identifier]
         else:
             return self._id_flow[id]
+
+    def get_flows_without_path_query_id(self, flow_ids, path_query_id):
+        """
+        Get flow ids without path query id, and set them to the id
+        :param flow_ids:
+        :param path_query_id:
+        :return:
+        """
+        result_ids = list()
+        with self._lock:
+            for flow_id in flow_ids:
+                flow = FlowData().get(flow_id)
+                if flow.path_query_id is None:
+                    result_ids.append(flow_id)
+                    flow.path_query_id = path_query_id
+        return result_ids
