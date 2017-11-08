@@ -10,7 +10,7 @@ class Hop:
 
     @property
     def domain_name(self):
-        return DomainDataProvider().get_domain(self._ip)
+        return DomainDataProvider().get_domain(self._ip).domain_name
 
     @property
     def ip(self):
@@ -20,7 +20,7 @@ class Hop:
 class Flow:
     def __init__(self, flow_id, src_ip, src_port, dst_ip, dst_port, protocol):
         self._flow_id = flow_id
-        self._path = []  # type: list[Hop]
+        self._path = list()  # type: list[Hop]
         self._src_ip = src_ip  # type: str
         self._dst_ip = dst_ip  # type: str
         self._src_port = src_port  # type: int
@@ -37,9 +37,9 @@ class Flow:
     @property
     def through_domains(self):
         domains = list()  # type: List[str]
-        domains.append(DomainDataProvider().get_domain(self._src_ip))
+        domains.append(DomainDataProvider().get_domain(self._src_ip).domain_name)
         domains.extend([hop.domain_name for hop in self._path])
-        return domains
+        return domains[:-1]
 
     def get_ingress_point(self, domain_name):
         through_domains = self.through_domains
@@ -75,7 +75,7 @@ class Flow:
 
     @property
     def src_port(self):
-        return self.src_port
+        return self._src_port
 
     @property
     def dst_ip(self):
@@ -115,7 +115,7 @@ class Flow:
 
     def delete_path_after_hop(self, domain_name):
         """
-        Delete path after a hop (including this hop)
+        Delete path after a hop (not including this hop)
         :param domain_name: the domain name of the hop
         """
         index = -1
@@ -123,7 +123,7 @@ class Flow:
             if hop.domain_name == domain_name:
                 index = self._path.index(hop)
         if index != -1:
-            self._path = self._path[:index]
+            self._path = self._path[:index+1]
 
     @property
     def flow_tuple(self):
@@ -143,7 +143,8 @@ class Flow:
         :type hop_ip: str
         :param hop_ip:
         """
-        self._path.append(Hop(hop_ip))
+        hop = Hop(hop_ip)
+        self._path.append(hop)
 
 
 class FlowDataProvider(metaclass=SingletonType):
@@ -163,7 +164,7 @@ class FlowDataProvider(metaclass=SingletonType):
         self._lock.acquire()
         if flow in self._content_flow.keys():
             self._lock.release()
-            return self._content_flow[flow].id
+            return self._content_flow[flow].flow_id
         else:
             # Create a new flow
             flow_obj = Flow(self._next_id, flow[0], flow[1], flow[2], flow[3], flow[4])
@@ -190,7 +191,7 @@ class FlowDataProvider(metaclass=SingletonType):
         if type(identifier) == "tuple":
             return self._content_flow[identifier]
         else:
-            return self._id_flow[id]
+            return self._id_flow[identifier]
 
     def get_flows_without_path_query_id(self, flow_ids, path_query_id):
         """

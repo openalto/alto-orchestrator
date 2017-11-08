@@ -2,10 +2,10 @@ import logging
 
 
 def init_logger():
-    FORMAT = '%(asctime)-15s %(message)s'
+    FORMAT = '[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s'
     logging.basicConfig(format=FORMAT)
     logger = logging.getLogger('orchestrator')
-    logger.warning('Protocol problem: %s', 'connection reset')
+    logger.setLevel(logging.DEBUG)
     return logger
 
 

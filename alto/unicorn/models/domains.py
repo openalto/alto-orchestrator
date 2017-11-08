@@ -1,11 +1,13 @@
 from threading import Lock
 
+import itertools
+
 from alto.unicorn.models.singleton import SingletonType
 
 
 class Domain(object):
-    def __init__(self):
-        self._domain_name = ""
+    def __init__(self, domain_name):
+        self._domain_name = domain_name
         self._update_url = ""
         self._control_url = ""
         self._hosts = set()
@@ -86,12 +88,10 @@ class DomainDataProvider(metaclass=SingletonType):
         :type domain_name: str
         :type data: dict
         """
-        domain = Domain()
-        self._domains[domain_name] = domain
+        domain = Domain(domain_name)
         domain.get_from_dict(data)
-        for i in data["hosts"]:
-            self._ip2domain[i] = domain
-        for i in data["ingress-points"]:
+        self._domains[domain_name] = domain
+        for i in itertools.chain(data["hosts"], data["ingress-points"]):
             self._ip2domain[i] = domain
 
         if callback:

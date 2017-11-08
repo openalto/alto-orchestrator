@@ -68,7 +68,7 @@ class DomainQuery(object):
         """
         :rtype: str
         """
-        return self.response
+        return self._response
 
     @response.setter
     def response(self, response):
@@ -81,6 +81,7 @@ class DomainQuery(object):
         self._query_items[query_item.flow_id] = query_item
 
     def get_query_item(self, flow_id):
+        print(self._query_items)
         return self._query_items[flow_id]
 
 
@@ -168,5 +169,7 @@ class QueryDataProvider(metaclass=SingletonType):
         :rtype: Query
         """
         if query_id is not None:
+            if type(query_id) != "int":
+                query_id = int(query_id)
             return self._queries[query_id]
         raise KeyError

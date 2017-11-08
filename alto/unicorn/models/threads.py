@@ -1,5 +1,6 @@
 import json
 import time
+from json import JSONDecodeError
 from queue import Queue
 from threading import Lock, Thread
 
@@ -11,7 +12,7 @@ from alto.unicorn.definitions import Definitions
 from alto.unicorn.exceptions import UnknownEventType
 from alto.unicorn.logger import logger
 from alto.unicorn.models.domains import DomainDataProvider
-from alto.unicorn.models.flows import FlowDataProvider
+from alto.unicorn.models.flows import FlowDataProvider, Flow
 from alto.unicorn.models.queries import QueryDataProvider, QueryItem, DomainQuery
 from alto.unicorn.models.singleton import SingletonType
 
@@ -103,6 +104,7 @@ class UpdateStreamThread(Thread):
         :type domain_query: DomainQuery
         :return:
         """
+        logger.debug("update resource query: " + domain_query.domain_name)
         ThreadDataProvider().get_task_handler_thread(domain_query.query_id).add_resource_query_response(
             domain_query.domain_name, domain_query.response)
 
@@ -127,12 +129,15 @@ class ControlStreamThread(Thread):
 
     def handle_request(self, request, callback, args):
 
-        print("POST request to " + self.control_url)
+        logger.info("POST request to " + self.control_url)
 
         # Send to remote & get response
-        response = requests.post(self.control_url, data=request)
-        print(response.text)
-        resp = json.loads(response.text)
+        response = requests.post(self.control_url, json=request, headers={'Content-type': 'application/json'})
+        try:
+            resp = json.loads(response.text)
+        except JSONDecodeError as e:
+            logger.error("Response is not in json format, use origin response" + response.text)
+            resp = response.text
 
         if callback:
             callback(request, resp, *args)
@@ -197,23 +202,30 @@ class TasksHandlerThread(Thread):
         )
         resource_request = request_builder.build()
 
+        logger.debug("Generate path query id " + str(self._path_query_id))
+        logger.debug("Generate resource query id " + str(self._resource_query_id))
+
         for domain_name in DomainDataProvider():
+            logger.debug("New query id to domain: " + domain_name)
             control_thread = ThreadDataProvider().get_control_thread(domain_name)
-            control_thread.add_request(path_request, callback=lambda req, res: print(res))
-            control_thread.add_request(resource_request, callback=lambda req, res: print(res))
+            control_thread.add_request(path_request, callback=lambda req, res: logger.debug(
+                "Send path query id: " + str(self._path_query_id) +
+                " to domain agent, and get response " + json.dumps(res)))
+            control_thread.add_request(resource_request, callback=lambda req, res: logger.debug(
+                "Send resource query id: " + str(self._resource_query_id) +
+                " to domain agent, and get response " + json.dumps(res)))
 
     @staticmethod
-    def group_by_domain_name(query_item_ids):
-        group = dict()
-        for query_item_id in query_item_ids:
-            query_item = QueryItem.get(query_item_id)
-            flow = query_item.flow
+    def group_by_domain_name(flow_ids):
+        group = dict()  # type: dict[str, list[int]]
+        for flow_id in flow_ids:
+            flow = FlowDataProvider().get(flow_id)
             last_hop = flow.last_hop
             ip = last_hop if last_hop != "" else flow.src_ip  # Source IP / Last hop ip
             domain_name = DomainDataProvider().get_domain(ip).domain_name
             if domain_name not in group:
                 group[domain_name] = list()
-            group[domain_name].add(query_item_id)
+            group[domain_name].append(flow_id)
         return group
 
     def path_query(self, query_flow_ids):
@@ -274,13 +286,18 @@ class TasksHandlerThread(Thread):
                                                  domain).get_query_item(flow_id).ingress_point
                                              )
                 request = request_builder.build()
-                control_thread.add_request(request, lambda req, res: print(res))
+                control_thread.add_request(request, lambda req, res: logger.debug(
+                    "Resource query to " + domain + " get response:" + res.__str__()))
 
-            while self.complete_resource_query_number < self.all_resource_query_number:
-                time.sleep(Definitions.POLL_TIME)
+        while self.complete_resource_query_number < self.all_resource_query_number:
+            time.sleep(Definitions.POLL_TIME)
 
+        logger.info("Resource query complete")
+
+        with self._resource_query_lock:
             self._resource_query_latest = True
-            self.resource_query_complete()
+
+        self.resource_query_complete()
 
     def resource_query_complete(self):
         with self._resource_query_lock:
@@ -301,14 +318,21 @@ class TasksHandlerThread(Thread):
                 job["protocol"]
             ) for job in jobs for i in job["potential_srcs"] for j in job["potential_dsts"]]
             flows_of_jobs = set(flows_of_jobs)
-            flow_ids.union(set([
+            flow_ids = flow_ids.union(set([
                 FlowDataProvider().get_flow_id(i) for i in flows_of_jobs
             ]))
         return list(flow_ids)
 
     def run(self):
+
         # Generate query ids and send them to servers
         self.prepare()
+
+        self._path_query_obj = QueryDataProvider().get(self._path_query_id)
+        self._resource_query_obj = QueryDataProvider().get(self._resource_query_id)
+
+        self._path_query_obj.query_type = Definitions.QueryType.PATH_QUERY_TYPE
+        self._resource_query_obj.query_type = Definitions.QueryType.RESOURCE_QUERY_TYPE
 
         # Get all flows of the set of tasks
         self._flow_ids = self.get_flows(self.tasks)
@@ -317,8 +341,8 @@ class TasksHandlerThread(Thread):
         unrecorded_flow_ids = FlowDataProvider().get_flows_without_path_query_id(self._flow_ids,
                                                                                  self._path_query_id)
 
-        self._path_query_obj = QueryDataProvider().get(self._path_query_id)
-        self._resource_query_obj = QueryDataProvider().get(self._resource_query_id)
+        logger.debug("Get " + str(len(self._flow_ids)) + " from given tasks, and " + str(
+            len(unrecorded_flow_ids)) + " of them are unrecorded")
 
         # Do path query
         self.path_query(unrecorded_flow_ids)
@@ -352,7 +376,7 @@ class RequestBuilder(object):
         self.action = action
         self.query_type = query_type
         if query_id is not None:
-            self.query_id = query_id
+            self.query_id = str(query_id)
         self.items = []
 
     def add_item(self, flow, ingress_point=None):
@@ -364,9 +388,9 @@ class RequestBuilder(object):
         """
         item = {
             "flow": {
-                "flow-id": flow.id,
+                "flow-id": flow.flow_id,
                 "src-ip": flow.src_ip,
-                "src-port": flow.src_port,
+                # "src-port": flow.src_port,
                 "dst-ip": flow.dst_ip,
                 "dst-port": flow.dst_port,
                 "protocol": flow.protocol
@@ -426,14 +450,16 @@ class ThreadDataProvider(metaclass=SingletonType):
         return self._task_handler_threads[query_id]
 
     def add_update_thread(self, domain_name, thread):
-        self.remove_update_thread(domain_name)
-        with self._lock:
-            self._update_stream_threads[domain_name] = thread
+        if thread is not None:
+            self.remove_update_thread(domain_name)
+            with self._lock:
+                self._update_stream_threads[domain_name] = thread
 
     def add_control_thread(self, domain_name, thread):
-        self.remove_control_thread(domain_name)
-        with self._lock:
-            self._control_stream_threads[domain_name] = thread
+        if thread is not None:
+            self.remove_control_thread(domain_name)
+            with self._lock:
+                self._control_stream_threads[domain_name] = thread
 
     def add_task_handler_thread(self, query_id, thread):
         self.remove_task_handler_thread(query_id)

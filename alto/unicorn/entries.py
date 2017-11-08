@@ -37,10 +37,7 @@ class RegisterEntry(object):
 
 class TasksEntry(object):
     def __init__(self, *args, **kwargs):
-        self.jobs = list()
-        self.tasks = list()
-        self.task2Jobs = dict()
-        self.flows = dict()
+        pass
 
     def on_post(self, req, res):
         raw_data = req.stream.read()
@@ -49,7 +46,7 @@ class TasksEntry(object):
         # Validate input with json schema
         validate(info, TASKS_SCHEMA)
 
-        thread = TasksHandlerThread(self.tasks)
+        thread = TasksHandlerThread(info)
         thread.start()
 
 
