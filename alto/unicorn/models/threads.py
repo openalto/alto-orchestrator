@@ -165,7 +165,6 @@ class TasksHandlerThread(Thread):
 
         # Flow ids
         self._flow_ids = list()
-        self._complete_flow_ids = set()
 
         # Query Id
         self._path_query_id = QueryDataProvider().gen_query_id()
@@ -180,53 +179,90 @@ class TasksHandlerThread(Thread):
         # Resource Query
         self.complete_resource_query_number = 0
         self.all_resource_query_number = 0
-        self._resource_query_response = dict()
+        self._resource_query_response = dict()  # type: dict[str, str]
+
+        # Is Query Latest
+        self._path_query_latest = False
         self._resource_query_latest = False
+        self._resource_query_complete = False
+
+        # Lock
+        self._path_query_lock = Lock()
         self._resource_query_lock = Lock()
 
-    def prepare(self):
+    def run(self):
+
+        # Generate query ids and send them to servers
+        self.prepare(self._path_query_id, self._resource_query_id)
+
+        self._path_query_obj = QueryDataProvider().get(self._path_query_id)
+        self._resource_query_obj = QueryDataProvider().get(self._resource_query_id)
+
+        self._path_query_obj.query_type = Definitions.QueryType.PATH_QUERY_TYPE
+        self._resource_query_obj.query_type = Definitions.QueryType.RESOURCE_QUERY_TYPE
+
+        # Get all flows of the set of tasks
+        self._flow_ids = self.get_flows(self.tasks)
+
+        # Get all unrecorded flow_ids, and set their path query id to self._path_query_id
+        unrecorded_flow_ids = FlowDataProvider().get_flows_without_path_query_id(self._flow_ids,
+                                                                                 self._path_query_id)
+
+        logger.debug("Get " + str(len(self._flow_ids)) + " from given tasks, and " + str(
+            len(unrecorded_flow_ids)) + " of them are unrecorded")
+
+        # Do path query
+        self.path_query(unrecorded_flow_ids)
+
+        while True:
+            complete_flow_ids = set()
+            flow_ids = set(self._flow_ids)
+            for flow_id in flow_ids:
+                flow = FlowDataProvider().get(flow_id)
+                if flow.is_complete:
+                    complete_flow_ids.add(flow_id)
+            if len(complete_flow_ids) >= len(flow_ids):
+                self._path_query_latest = True
+
+            if self._path_query_latest and not self._resource_query_complete:
+                self.resource_query()
+
+            if self._path_query_latest and self._resource_query_complete and not self._resource_query_latest:
+                self.resource_query_complete_operation()
+
+            time.sleep(Definitions.POLL_TIME)
+
+    @staticmethod
+    def prepare(path_query_id, resource_query_id):
         """
         Create new path query id and resource query id, then send them to servers
         """
         request_builder = RequestBuilder(
             action=Definitions.QueryAction.NEW,
             query_type=Definitions.QueryType.PATH_QUERY_TYPE,
-            query_id=self._path_query_id
+            query_id=path_query_id
         )
         path_request = request_builder.build()
 
         request_builder = RequestBuilder(
             action=Definitions.QueryAction.NEW,
             query_type=Definitions.QueryType.RESOURCE_QUERY_TYPE,
-            query_id=self._resource_query_id
+            query_id=resource_query_id
         )
         resource_request = request_builder.build()
 
-        logger.debug("Generate path query id " + str(self._path_query_id))
-        logger.debug("Generate resource query id " + str(self._resource_query_id))
+        logger.debug("Generate path query id " + str(path_query_id))
+        logger.debug("Generate resource query id " + str(resource_query_id))
 
         for domain_name in DomainDataProvider():
             logger.debug("New query id to domain: " + domain_name)
             control_thread = ThreadDataProvider().get_control_thread(domain_name)
             control_thread.add_request(path_request, callback=lambda req, res: logger.debug(
-                "Send path query id: " + str(self._path_query_id) +
+                "Send path query id: " + str(path_query_id) +
                 " to domain agent, and get response " + json.dumps(res)))
             control_thread.add_request(resource_request, callback=lambda req, res: logger.debug(
-                "Send resource query id: " + str(self._resource_query_id) +
+                "Send resource query id: " + str(resource_query_id) +
                 " to domain agent, and get response " + json.dumps(res)))
-
-    @staticmethod
-    def group_by_domain_name(flow_ids):
-        group = dict()  # type: dict[str, list[int]]
-        for flow_id in flow_ids:
-            flow = FlowDataProvider().get(flow_id)
-            last_hop = flow.last_hop
-            ip = last_hop if last_hop != "" else flow.src_ip  # Source IP / Last hop ip
-            domain_name = DomainDataProvider().get_domain(ip).domain_name
-            if domain_name not in group:
-                group[domain_name] = list()
-            group[domain_name].append(flow_id)
-        return group
 
     def path_query(self, query_flow_ids):
         # Group by domain name
@@ -255,17 +291,6 @@ class TasksHandlerThread(Thread):
             request_dict = request_builder.build()
             ThreadDataProvider().get_control_thread(domain_name).add_request(request_dict, callback=None)
 
-    @staticmethod
-    def resource_query_group(flow_ids):
-        grouped_flow_ids = dict()
-        for flow_id in flow_ids:
-            through_domains = FlowDataProvider().get(flow_id).through_domains
-            for domain_name in through_domains:
-                if domain_name not in grouped_flow_ids:
-                    grouped_flow_ids[domain_name] = set()
-                grouped_flow_ids[domain_name].add(flow_id)
-        return grouped_flow_ids
-
     def resource_query(self):
         with self._resource_query_lock:
             self.complete_resource_query_number = 0
@@ -292,18 +317,50 @@ class TasksHandlerThread(Thread):
         while self.complete_resource_query_number < self.all_resource_query_number:
             time.sleep(Definitions.POLL_TIME)
 
-        logger.info("Resource query complete")
-
         with self._resource_query_lock:
-            self._resource_query_latest = True
+            self._resource_query_complete = True
 
-        self.resource_query_complete()
+        self.resource_query_complete_operation()
 
-    def resource_query_complete(self):
+    def resource_query_complete_operation(self):
+        logger.info("Resource query complete")
         with self._resource_query_lock:
             for domain_name in self._resource_query_response:
-                query_items = QueryDataProvider().get(self._resource_query_id).get_domain_query(domain_name).query_items
-                # TODO
+                response = self._resource_query_response[domain_name]
+                print(response)
+
+            self._resource_query_latest = True
+
+    def add_resource_query_response(self, domain_name, response):
+        with self._resource_query_lock:
+            if domain_name not in self._resource_query_response.keys():
+                self.complete_resource_query_number += 1
+            self._resource_query_response[domain_name] = response
+            self._resource_query_latest = False
+
+    @staticmethod
+    def group_by_domain_name(flow_ids):
+        group = dict()  # type: dict[str, list[int]]
+        for flow_id in flow_ids:
+            flow = FlowDataProvider().get(flow_id)
+            last_hop = flow.last_hop
+            ip = last_hop if last_hop != "" else flow.src_ip  # Source IP / Last hop ip
+            domain_name = DomainDataProvider().get_domain(ip).domain_name
+            if domain_name not in group:
+                group[domain_name] = list()
+            group[domain_name].append(flow_id)
+        return group
+
+    @staticmethod
+    def resource_query_group(flow_ids):
+        grouped_flow_ids = dict()
+        for flow_id in flow_ids:
+            through_domains = FlowDataProvider().get(flow_id).through_domains
+            for domain_name in through_domains:
+                if domain_name not in grouped_flow_ids:
+                    grouped_flow_ids[domain_name] = set()
+                grouped_flow_ids[domain_name].add(flow_id)
+        return grouped_flow_ids
 
     @staticmethod
     def get_flows(tasks):
@@ -322,53 +379,6 @@ class TasksHandlerThread(Thread):
                 FlowDataProvider().get_flow_id(i) for i in flows_of_jobs
             ]))
         return list(flow_ids)
-
-    def run(self):
-
-        # Generate query ids and send them to servers
-        self.prepare()
-
-        self._path_query_obj = QueryDataProvider().get(self._path_query_id)
-        self._resource_query_obj = QueryDataProvider().get(self._resource_query_id)
-
-        self._path_query_obj.query_type = Definitions.QueryType.PATH_QUERY_TYPE
-        self._resource_query_obj.query_type = Definitions.QueryType.RESOURCE_QUERY_TYPE
-
-        # Get all flows of the set of tasks
-        self._flow_ids = self.get_flows(self.tasks)
-
-        # Get all unrecorded flow_ids, and set their path query id to self._path_query_id
-        unrecorded_flow_ids = FlowDataProvider().get_flows_without_path_query_id(self._flow_ids,
-                                                                                 self._path_query_id)
-
-        logger.debug("Get " + str(len(self._flow_ids)) + " from given tasks, and " + str(
-            len(unrecorded_flow_ids)) + " of them are unrecorded")
-
-        # Do path query
-        self.path_query(unrecorded_flow_ids)
-
-        # waiting for all path query complete
-        while len(self._complete_flow_ids) < len(set(self._flow_ids)):
-            time.sleep(Definitions.POLL_TIME)
-            # Add completed flow ids to complete set
-            for flow_id in self._flow_ids:
-                flow = FlowDataProvider().get(flow_id)
-                if flow.is_complete:
-                    self._complete_flow_ids.add(flow_id)
-
-        # Do resource query
-        self.resource_query()
-
-        while True:
-            if not self._resource_query_latest:
-                self.resource_query_complete()
-
-    def add_resource_query_response(self, domain_name, response):
-        with self._resource_query_lock:
-            if domain_name not in self._resource_query_response.keys():
-                self.complete_resource_query_number += 1
-            self._resource_query_response[domain_name] = response
-            self._resource_query_latest = False
 
 
 class RequestBuilder(object):
