@@ -340,7 +340,11 @@ class TasksHandlerThread(Thread):
                     constraint = Constraint(bound["availbw"])
                     for term in terms:
                         flow_obj = FlowDataProvider().get(int(term["flow-id"]))
-                        constraint.add_term(Term(flow_obj.flow_id, term["coefficient"], flow_obj.job_id))
+                        try:
+                            coefficient = term["coefficient"]
+                        except KeyError:
+                            coefficient = 1
+                        constraint.add_term(Term(flow_obj.flow_id, coefficient, flow_obj.job_id))
                     constraints.append(constraint)
 
             SchedulerThread(constraints).start()

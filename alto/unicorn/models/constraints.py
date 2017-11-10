@@ -1,14 +1,14 @@
 from threading import Lock
 
-from alto.unicorn.models.flows import FlowDataProvider
-from alto.unicorn.models.jobs import JobDataProvider
+from alto.unicorn.models.flows import FlowDataProvider, Flow
+from alto.unicorn.models.jobs import JobDataProvider, Job
 
 
 class Term(object):
     def __init__(self, flow_id, coefficient, job_id):
-        self._flow = FlowDataProvider().get(flow_id)
+        self._flow = FlowDataProvider().get(flow_id)  # type: Flow
         self._coefficient = coefficient
-        self._job = JobDataProvider().get(job_id)
+        self._job = JobDataProvider().get(job_id)  # type: Job
 
     @property
     def flow(self):
@@ -25,7 +25,7 @@ class Term(object):
 
 class Constraint(object):
     def __init__(self, bound=0):
-        self._terms = set()
+        self._terms = set()  # type: set[Term]
         self._bound = bound
         self._lock = Lock()
 
