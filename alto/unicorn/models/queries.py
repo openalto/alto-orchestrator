@@ -81,7 +81,6 @@ class DomainQuery(object):
         self._query_items[query_item.flow_id] = query_item
 
     def get_query_item(self, flow_id):
-        print(self._query_items)
         return self._query_items[flow_id]
 
 

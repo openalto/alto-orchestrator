@@ -19,7 +19,7 @@ class Hop:
 
 class Flow:
     def __init__(self, flow_id, src_ip, src_port, dst_ip, dst_port, protocol):
-        self._flow_id = flow_id
+        self._flow_id = flow_id  # type: int
         self._path = list()  # type: list[Hop]
         self._src_ip = src_ip  # type: str
         self._dst_ip = dst_ip  # type: str
@@ -30,6 +30,8 @@ class Flow:
         self._is_complete = False  # type: bool
         self._lock = Lock()
 
+        self._job_id = 0
+
     @property
     def flow_id(self):
         return self._flow_id
@@ -39,7 +41,7 @@ class Flow:
         domains = list()  # type: List[str]
         domains.append(DomainDataProvider().get_domain(self._src_ip).domain_name)
         domains.extend([hop.domain_name for hop in self._path])
-        return domains[:-1]
+        return domains
 
     def get_ingress_point(self, domain_name):
         through_domains = self.through_domains
@@ -145,6 +147,14 @@ class Flow:
         """
         hop = Hop(hop_ip)
         self._path.append(hop)
+
+    @property
+    def job_id(self):
+        return self._job_id
+
+    @job_id.setter
+    def job_id(self, job_id):
+        self._job_id = job_id
 
 
 class FlowDataProvider(metaclass=SingletonType):

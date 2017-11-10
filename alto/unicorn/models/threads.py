@@ -11,10 +11,13 @@ from sseclient import SSEClient
 from alto.unicorn.definitions import Definitions
 from alto.unicorn.exceptions import UnknownEventType
 from alto.unicorn.logger import logger
+from alto.unicorn.models.constraints import Constraint, Term
 from alto.unicorn.models.domains import DomainDataProvider
 from alto.unicorn.models.flows import FlowDataProvider, Flow
+from alto.unicorn.models.jobs import Job
 from alto.unicorn.models.queries import QueryDataProvider, QueryItem, DomainQuery
 from alto.unicorn.models.singleton import SingletonType
+from alto.unicorn.scheduler.scheduler import Scheduler
 
 
 class UpdateStreamThread(Thread):
@@ -293,6 +296,7 @@ class TasksHandlerThread(Thread):
 
     def resource_query(self):
         with self._resource_query_lock:
+            logger.info("Start resource query")
             self.complete_resource_query_number = 0
             domain_flow_ids = self.resource_query_group(self._flow_ids)
             self.all_resource_query_number = len(domain_flow_ids.keys())
@@ -306,10 +310,13 @@ class TasksHandlerThread(Thread):
                 )
                 for flow_id in domain_flow_ids[domain]:
                     flow = FlowDataProvider().get(flow_id)
-                    request_builder.add_item(flow,
-                                             QueryDataProvider().get(flow.path_query_id).get_domain_query(
-                                                 domain).get_query_item(flow_id).ingress_point
-                                             )
+                    try:
+                        request_builder.add_item(flow,
+                                                 QueryDataProvider().get(flow.path_query_id).get_domain_query(
+                                                     domain).get_query_item(flow_id).ingress_point
+                                                 )
+                    except KeyError:
+                        request_builder.add_item(flow, flow.last_hop)
                 request = request_builder.build()
                 control_thread.add_request(request, lambda req, res: logger.debug(
                     "Resource query to " + domain + " get response:" + res.__str__()))
@@ -319,16 +326,24 @@ class TasksHandlerThread(Thread):
 
         with self._resource_query_lock:
             self._resource_query_complete = True
+            logger.info("Resource query complete, contains " + str(self.all_resource_query_number) + " domains")
 
         self.resource_query_complete_operation()
 
     def resource_query_complete_operation(self):
-        logger.info("Resource query complete")
+        logger.info("Resource query update")
+        constraints = list()
         with self._resource_query_lock:
             for domain_name in self._resource_query_response:
                 response = self._resource_query_response[domain_name]
-                print(response)
+                for terms, bound in zip(response["ane-matrix"], response["anes"]):
+                    constraint = Constraint(bound["availbw"])
+                    for term in terms:
+                        flow_obj = FlowDataProvider().get(int(term["flow-id"]))
+                        constraint.add_term(Term(flow_obj.flow_id, term["coefficient"], flow_obj.job_id))
+                    constraints.append(constraint)
 
+            SchedulerThread(constraints).start()
             self._resource_query_latest = True
 
     def add_resource_query_response(self, domain_name, response):
@@ -367,18 +382,30 @@ class TasksHandlerThread(Thread):
         flow_ids = set()
         for task in tasks:
             jobs = task["jobs"]
-            flows_of_jobs = [(
-                i["ip"],
-                i["port"],
-                j["ip"],
-                j["port"],
-                job["protocol"]
-            ) for job in jobs for i in job["potential_srcs"] for j in job["potential_dsts"]]
-            flows_of_jobs = set(flows_of_jobs)
-            flow_ids = flow_ids.union(set([
-                FlowDataProvider().get_flow_id(i) for i in flows_of_jobs
-            ]))
+            for job in jobs:
+                job_obj = Job(job["file-size"])
+                for i in job["potential_srcs"]:
+                    for j in job["potential_dsts"]:
+                        tup = [i["ip"], None, j["ip"], None, job["protocol"]]
+                        if "port" in i.keys():
+                            tup[1] = i["port"]
+                        if "port" in j.keys():
+                            tup[3] = j["port"]
+                        flow_id = FlowDataProvider().get_flow_id(tuple(tup))
+                        flow_obj = FlowDataProvider().get(flow_id)
+                        flow_obj.job_id = job_obj.job_id
+                        job_obj.add_flow(flow_obj)
+                        flow_ids.add(flow_id)
         return list(flow_ids)
+
+
+class SchedulerThread(Thread):
+    def __init__(self, constraints):
+        self._constraints = constraints
+        super(SchedulerThread, self).__init__()
+
+    def run(self):
+        Scheduler(constraints=self._constraints).schedule()
 
 
 class RequestBuilder(object):
