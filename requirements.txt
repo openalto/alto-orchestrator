@@ -1,0 +1,7 @@
+urllib3
+gunicorn
+falcon
+jsonschema
+pyyaml
+requests
+sseclient-py
