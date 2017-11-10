@@ -17,8 +17,8 @@ setup(
     version="0.1",
     description="An unicorn as a platform of job placement scheduler",
     url="https://github.com/openalto/alto-unicorn",
-    author="Y.Jace Liu, Jensen Zhang",
-    author_email="yang.jace.liu@linux.com, hack@jensen-zhang.site",
+    author="Y.Jace Liu, Jensen Zhang, Kai Gao",
+    author_email="yang.jace.liu@linux.com, hack@jensen-zhang.site, emiapwil@gmail.com",
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python",
