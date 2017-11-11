@@ -1,63 +1,28 @@
-#!/usr/bin/env python
+from pulp import *
+from alto.unicorn.scheduler.schedulerdataformat import *
 
-from pulp import LpProblem, LpMaximize, LpVariable, \
-    LpStatus, lpSum
 
-def read_task_from_file(filename):
-    rsaCs = []
-    jobId2DataSize = {}
-    flow2JobId = {}
-    with open(filename) as f:
-        for line in f:
-            if str(line).__contains__("B"):
-                rsaCs.append(line)
-                flows = str(line).split(" ")[:-1]
-                for flow in flows:
-                    flow2JobId[flow] = str(flow).split("_")[1]
-            else:
-                jobId2DataSizeStr = str(line).split(" ")
-                for j2d in jobId2DataSizeStr:
-                    jobId = str(j2d).split("=")[0]
-                    dataSize = str(j2d).split("=")[1]
-                    jobId2DataSize[jobId] = dataSize
-    return rsaCs, jobId2DataSize, flow2JobId
-
-class SimpleScheduler:
-    """
-    A simple implementation of unicorn orchestrator scheduler.
-    """
+class SimplifiedScheduler:
 
     def __init__(self):
-        # TODO: Make variables structured and human-readable
         self.bijkName2bijkVar = {}
+
         self.rsaCs = []
+
         self.jobId2DataSize = {}
+
         self.bsmall = LpVariable("bsmall", 0)
+
         self.jobId2Num = {}
+
         self.jobId2Flows = {}
 
-        self.prob = LpProblem("cms-problem", LpMaximize)
-        self.prob += self.bsmall
 
-    def testFromFile(self, filename):
-        rsaCs, jobId2DataSize, flow2JobId = read_task_from_file(filename)
-        self.setGlobalVars(rsaCs, jobId2DataSize, flow2JobId)
 
-    def setGlobalVars(self, rsaCs, jobId2DataSize, flow2JobId):
-        self.rsaCs = rsaCs
-        self.jobId2DataSize = jobId2DataSize
-        for flow in flow2JobId:
-            jobId = str(flow).split("_")[1]
-            if jobId not in self.jobId2Num:
-                self.jobId2Num[jobId] = 1
-            else:
-                self.jobId2Num[jobId] += 1
-            if jobId not in self.jobId2Flows:
-                self.jobId2Flows[jobId] = [flow]
-            else:
-                self.jobId2Flows[jobId].append(flow)
 
-    def setRSAConstraints(self):
+
+
+    def setRSAConstraints(self, prob):
         for rsaC in self.rsaCs:
             bijkL = []
             flows = str(rsaC).split(" ")[:-1]
@@ -70,40 +35,125 @@ class SimpleScheduler:
                 else:
                     bijk = self.bijkName2bijkVar[bijkStr]
                 bijkL.append(bijk)
-            self.prob += lpSum(bijkL) <= bw
+            prob += lpSum(bijkL) <= bw
 
-    def setBijkAndBsmall(self):
+
+    def setGlobalVarsFromDataStruc(self, rsaDataSize):
+        flow2JobId = {}
+        for line in rsaDataSize.getLines():
+            if str(line).__contains__("B"):
+                self.rsaCs.append(line)
+                flows = str(line).split(" ")[:-1]
+                for flow in flows:
+                    flow2JobId[flow] = str(flow).split("_")[1]
+            else:
+                jobId2DataSizeStr = str(line).split(" ")
+                for j2d in jobId2DataSizeStr:
+                    jobId = str(j2d).split("=")[0]
+                    dataSize = str(j2d).split("=")[1]
+                    self.jobId2DataSize[jobId] = dataSize
+
+        for flow in flow2JobId:
+            jobId = str(flow).split("_")[1]
+            if jobId not in self.jobId2Num:
+                self.jobId2Num[jobId] = 1
+            else:
+                self.jobId2Num[jobId] += 1
+            if jobId not in self.jobId2Flows:
+                self.jobId2Flows[jobId] = [flow]
+            else:
+                self.jobId2Flows[jobId].append(flow)
+
+
+    def setGlobalVars(self, filename):
+        flow2JobId = {}
+        with open(filename) as f:
+            for line in f:
+                if str(line).__contains__("B"):
+                    self.rsaCs.append(line)
+                    flows = str(line).split(" ")[:-1]
+                    for flow in flows:
+                        flow2JobId[flow] = str(flow).split("_")[1]
+                else:
+                    jobId2DataSizeStr = str(line).split(" ")
+                    for j2d in jobId2DataSizeStr:
+                        jobId = str(j2d).split("=")[0]
+                        dataSize = str(j2d).split("=")[1]
+                        self.jobId2DataSize[jobId] = dataSize
+        for flow in flow2JobId:
+            jobId = str(flow).split("_")[1]
+            if jobId not in self.jobId2Num:
+                self.jobId2Num[jobId] = 1
+            else:
+                self.jobId2Num[jobId] += 1
+            if jobId not in self.jobId2Flows:
+                self.jobId2Flows[jobId] = [flow]
+            else:
+                self.jobId2Flows[jobId].append(flow)
+
+    def setBijkAndBsmall(self, prob):
         for jobId in self.jobId2DataSize:
             Bi = int(self.jobId2DataSize[jobId]) * self.bsmall
-            self.prob += lpSum(
-                self.bijkName2bijkVar[bijkName]
-                for bijkName in self.jobId2Flows[jobId]) - Bi * self.jobId2Num[jobId] == 0
-            self.prob += lpSum(
-                self.bijkName2bijkVar[bijkName]
-                for bijkName in self.jobId2Flows[jobId]) - Bi == 0
+            #prob += lpSum(bijkName2bijkVar[bijkName] for bijkName in jobId2Flows[jobId]) - Bi * jobId2Num[jobId] == 0
+            prob += lpSum(self.bijkName2bijkVar[bijkName] for bijkName in self.jobId2Flows[jobId]) - Bi == 0
 
-    def report(self):
-        print(LpStatus[self.prob.status])
 
-        for v in self.prob.variables():
-            print(v.name, "=", v.varValue)
+    def getFirstRunResult(self, rsaDataSize):
+        result = FirstRunResult()
+        prob = LpProblem("cms-problem", LpMaximize)
 
-    def info(self):
+        prob += self.bsmall
+
+        self.setGlobalVarsFromDataStruc(rsaDataSize)
+        self.setRSAConstraints(prob)
+        self.setBijkAndBsmall(prob)
+
         print(self.bijkName2bijkVar)
         print(self.jobId2DataSize)
         print(self.jobId2Num)
         print(self.jobId2Flows)
 
-    def solve(self):
-        self.prob.solve()
+        prob.solve()
+
+        print(LpStatus[prob.status])
+
+        for v in prob.variables():
+            print(v.name, "=", v.varValue)
+            result.addFirstRunResult(str(v.name) + " = " + str(v.varValue))
+
+        return result
+
+
+
+    def testFromFile(self, fileName):
+        prob = LpProblem("cms-problem", LpMaximize)
+
+        prob += self.bsmall
+
+        self.setGlobalVars(fileName)
+        self.setRSAConstraints(prob)
+        self.setBijkAndBsmall(prob)
+
+        print(self.bijkName2bijkVar)
+        print(self.jobId2DataSize)
+        print(self.jobId2Num)
+        print(self.jobId2Flows)
+
+        prob.solve()
+
+        print(LpStatus[prob.status])
+
+        for v in prob.variables():
+            print(v.name, "=", v.varValue)
+
 
 if __name__ == '__main__':
-    sched = SimpleScheduler()
+    test = SimplifiedScheduler()
 
-    sched.testFromFile("file1")
-    sched.setRSAConstraints()
-    sched.setBijkAndBsmall()
+    d1 = RsaDataSize()
+    d1.readFile("file1")
 
-    sched.info()
-    sched.solve()
-    sched.report()
+    #test.testFromFile("file1")
+
+    firstRunResult = test.getFirstRunResult(d1)
+    print(firstRunResult.getLines())
