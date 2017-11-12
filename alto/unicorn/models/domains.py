@@ -1,6 +1,5 @@
-from threading import Lock
-
 import itertools
+from threading import Lock
 
 from alto.unicorn.models.singleton import SingletonType
 
@@ -10,6 +9,7 @@ class Domain(object):
         self._domain_name = domain_name
         self._update_url = ""
         self._control_url = ""
+        self._deploy_url = ""
         self._hosts = set()
         self._ingress_points = set()
         self._lock = Lock()
@@ -26,6 +26,14 @@ class Domain(object):
     def update_url(self, update_url):
         with self._lock:
             self._update_url = update_url
+
+    @property
+    def deploy_url(self):
+        return self._deploy_url
+
+    @deploy_url.setter
+    def deploy_url(self, url):
+        self._deploy_url = url
 
     @property
     def control_url(self):
@@ -55,6 +63,8 @@ class Domain(object):
                 self._update_url = dic["update-url"]
             if "control-url" in dic:
                 self._control_url = dic["control-url"]
+            if "deploy-url" in dic:
+                self._deploy_url = dic["deploy-url"]
             if "hosts" in dic:
                 self._hosts = set(dic["hosts"])
             if "ingress-points" in dic:
