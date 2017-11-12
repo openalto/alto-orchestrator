@@ -18,6 +18,7 @@ from alto.unicorn.models.jobs import Job
 from alto.unicorn.models.queries import QueryDataProvider, QueryItem, DomainQuery
 from alto.unicorn.models.singleton import SingletonType
 from alto.unicorn.scheduler.scheduler import Scheduler
+from alto.rsa.converter import resource_query_transform
 
 
 class UpdateStreamThread(Thread):
@@ -333,19 +334,28 @@ class TasksHandlerThread(Thread):
     def resource_query_complete_operation(self):
         logger.info("Resource query update")
         constraints = list()
+        response_whole = dict()
+        response_whole["ane-matrix"] = list()
+        response_whole["anes"] = list()
+
         with self._resource_query_lock:
             for domain_name in self._resource_query_response:
                 response = self._resource_query_response[domain_name]
-                for terms, bound in zip(response["ane-matrix"], response["anes"]):
-                    constraint = Constraint(bound["availbw"])
-                    for term in terms:
-                        flow_obj = FlowDataProvider().get(int(term["flow-id"]))
-                        try:
-                            coefficient = term["coefficient"]
-                        except KeyError:
-                            coefficient = 1
-                        constraint.add_term(Term(flow_obj.flow_id, coefficient, flow_obj.job_id))
-                    constraints.append(constraint)
+                response_whole["ane-matrix"].extend(response["ane-matrix"])
+                response_whole["anes"].extend(response["anes"])
+
+            response_whole = resource_query_transform(response_whole)
+
+            for terms, bound in zip(response_whole["ane-matrix"], response_whole["anes"]):
+                constraint = Constraint(bound["availbw"])
+                for term in terms:
+                    flow_obj = FlowDataProvider().get(int(term["flow-id"]))
+                    try:
+                        coefficient = term["coefficient"]
+                    except KeyError:
+                        coefficient = 1
+                    constraint.add_term(Term(flow_obj.flow_id, coefficient, flow_obj.job_id))
+                constraints.append(constraint)
 
             SchedulerThread(constraints).start()
             self._resource_query_latest = True
