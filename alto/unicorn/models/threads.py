@@ -409,7 +409,42 @@ class SchedulerThread(Thread):
         super(SchedulerThread, self).__init__()
 
     def run(self):
-        Scheduler(constraints=self._constraints).schedule()
+        logger.info("Start a scheduling thread")
+        result = Scheduler(constraints=self._constraints).schedule()  # type: dict[int, int]
+
+        # Assume result is a dict from flow-id to bandwidth
+
+        # Group by through domains
+        domain_bandwidth = dict()  # type: dict[str, dict[int, int]]
+        for flow_id in result.keys():
+            flow = FlowDataProvider().get(flow_id)
+            through_domains = flow.through_domains
+            for domain_name in through_domains:
+                if domain_name not in domain_bandwidth.keys():
+                    domain_bandwidth[domain_name] = dict()
+                domain_bandwidth[domain_name][flow.flow_id] = result[flow_id]
+
+        # For every through domain, send a deploy request
+        for domain_name in domain_bandwidth.keys():
+            request = list()
+            deploy_url = DomainDataProvider()[domain_name].deploy_url
+            flow_bandwidth = domain_bandwidth[domain_name]
+            for flow_id in flow_bandwidth.keys():
+                flow_obj = FlowDataProvider().get(flow_id)
+                flow = {
+                    "flow-id": flow_obj.flow_id,
+                    "src-ip": flow_obj.src_ip,
+                    "dst-ip": flow_obj.dst_ip
+                }
+                if not flow_obj.dst_port:
+                    flow["dst-port"] = flow_obj.dst_port
+                try:
+                    ingress_point = QueryDataProvider().get(flow_obj.path_query_id).get_domain_query(
+                        domain_name).get_query_item(flow_id).ingress_point
+                except:
+                    ingress_point = flow_obj.last_hop
+                request.append({"ingress-point": ingress_point, "flow": flow, "bandwidth": flow_bandwidth[flow_id]})
+            requests.post(deploy_url, json=request)
 
 
 class RequestBuilder(object):

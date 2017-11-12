@@ -38,6 +38,8 @@ class Scheduler(object):
 
         finalResult = secondRun.getResult(firstInputData, firstRunResult)
 
+        return finalResult
+
 
     def __handleFinalResult(self, finalResult):
         flowname2bw = finalResult.getResult()

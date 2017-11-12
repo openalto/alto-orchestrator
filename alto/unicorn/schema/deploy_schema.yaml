@@ -27,9 +27,7 @@ items:
           minimum: 0
           maximum: 65535
       required:
-        src-ip
         dst-ip
-        dst-port
         flow-id
     bandwidth:
       type: integer
