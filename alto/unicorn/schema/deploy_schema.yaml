@@ -1,0 +1,40 @@
+---
+"$schema": http://json-schema.org/draft-06/schema#
+title: Deploys
+description: An array of items to be deployed
+type: array
+minItems: 1
+uniqueItems: true
+items:
+  type: object
+  properties:
+    ingress-point:
+      type: string
+      pattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|$
+    flow:
+      type: object
+      properties:
+        flow-id:
+          type: string
+        src-ip:
+          type: string
+          pattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|$
+        dst-ip:
+          type: string
+          pattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|$
+        dst-port:
+          type: integer
+          minimum: 0
+          maximum: 65535
+      required:
+        src-ip
+        dst-ip
+        dst-port
+        flow-id
+    bandwidth:
+      type: integer
+      description: The bandwidth of the given flow
+  required:
+    ingress-point
+    flow
+    bandwidth
