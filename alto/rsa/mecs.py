@@ -2,7 +2,7 @@
 
 from itertools import groupby
 from pulp import LpAffineExpression, LpVariable, LpProblem, LpMaximize
-from .view import Element, View
+from view import Element, View
 
 class EquivTransformation(object):
     def __init__(self):
@@ -30,8 +30,9 @@ class EquivAggregation(EquivTransformation):
             nzv = v[0].nzv
             aggregated += list(map(lambda e: e.eid, v[1:]))
             bw = min(map(lambda e: e.bw, v))
-            cost = sum(map(lambda e: e.cost, v))
-            nelements += [Element(eid, nzv, bw, cost)]
+            # cost = sum(map(lambda e: e.cost, v))
+            # nelements += [Element(eid, nzv, bw, cost)]
+            nelements += [Element(eid, nzv, bw)]
 
         view = View(paths, nelements)
         return view.shrink(aggregated)
