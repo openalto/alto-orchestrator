@@ -1,7 +1,5 @@
 from threading import Lock
 
-from collections import Collection
-
 from alto.unicorn.models.flows import Flow
 from alto.unicorn.models.singleton import SingletonType
 
@@ -19,7 +17,6 @@ class Job(object):
     def __init__(self, file_size):
         """
         :type file_size: int
-        :type flows: Collection
         """
         self._job_id = Job.gen_id(self)
         self._file_size = file_size
