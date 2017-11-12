@@ -1,13 +1,16 @@
-#/usr/bin/env python3
+# /usr/bin/env python3
 
 from itertools import groupby
+
 from pulp import LpProblem, LpMaximize, LpVariable, LpAffineExpression, value, solvers
+
 
 def paths_to_nzv(paths):
     p = len(paths)
     pairs = [(c, v) for v in range(p) for c in paths[v]]
     g = groupby(sorted(pairs), lambda e: e[0])
-    return { c: list(map(lambda t: t[1], nzv)) for c, nzv in g }
+    return {c: list(map(lambda t: t[1], nzv)) for c, nzv in g}
+
 
 def view_to_constraints(view, xs):
     constraints = []
@@ -15,10 +18,12 @@ def view_to_constraints(view, xs):
         constraints += [e.constraint(xs)]
     return constraints
 
+
 def view_to_costs(view, n):
     elements = {e.eid: e for e in view.elements}
     paths = view.paths
     return [sum(map(lambda x: elements[x].cost, paths[i])) for i in range(n)]
+
 
 def nzv2exp(nzv, lpvars):
     """
@@ -26,6 +31,7 @@ def nzv2exp(nzv, lpvars):
     constraint: the target constraint
     """
     return LpAffineExpression(map(lambda v: (lpvars[v], 1), nzv))
+
 
 class Constraint(object):
     """
@@ -47,13 +53,15 @@ class Constraint(object):
     def __repr__(self):
         return "+".join(map(lambda v: "x%s" % v, self.nzv)) + "<=" + str(self.bound)
 
+
 def construct_prob(n_var, constraints):
-    x = {i: LpVariable("x%s"%i, lowBound = 0) for i in range(n_var)}
+    x = {i: LpVariable("x%s" % i, lowBound=0) for i in range(n_var)}
 
     prob = LpProblem("MECS", LpMaximize)
     for c in constraints:
         prob += c(x), str(c.cid)
     return x, prob
+
 
 def is_redundant(constraints, paths, c):
     filtered = [cc for cc in constraints if cc.cid != c.cid]

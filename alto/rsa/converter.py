@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-import json
-from abstraction import MecsNetworkView
+from alto.rsa.abstraction import MecsNetworkView
+
 
 def resource_query_transform(response):
-    response
     bws = [ane['availbw'] for ane in response['anes']]
     paths_map = dict()
     ane_matrix = response['ane-matrix']
@@ -24,13 +23,14 @@ def resource_query_transform(response):
     new_ane_matrix = [[{"flow-id": flow_ids[i]} for i in e.nzv] for e in view.elements]
     return {"anes": new_anes, "ane-matrix": new_ane_matrix}
 
+
 if '__main__' == __name__:
     test_data = {
         "anes": [{"availbw": 3}, {"availbw": 7}, {"availbw": 3}],
         "ane-matrix": [
             [{"flow-id": "0"}, {"flow-id": "1"}],
             [{"flow-id": "1"}, {"flow-id": "2"}],
-            [{"flow-id":"2"}]
+            [{"flow-id": "2"}]
         ]
     }
     print("original:", test_data)

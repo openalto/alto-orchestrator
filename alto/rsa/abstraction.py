@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 from functools import partial
-from lputil import paths_to_nzv, is_redundant
-from view import Element, View
-from mecs import EquivAggregation, EquivDecomposition
+from alto.rsa.lputil import paths_to_nzv, is_redundant
+from alto.rsa.view import Element, View
+from alto.rsa.mecs import EquivAggregation, EquivDecomposition
 
 class Abstraction(object):
     def __init__(self, paths, bws):

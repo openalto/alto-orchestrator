@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from lputil import paths_to_nzv, Constraint, construct_prob
+from alto.rsa.lputil import Constraint
+
 
 class Element(object):
     def __init__(self, eid, nzv, bw):
@@ -12,6 +13,7 @@ class Element(object):
 
     def __repr__(self):
         return '<eid: %s, nzv: %s, bw: %s>' % (self.eid, self.nzv, self.bw)
+
 
 class View(object):
     def __init__(self, paths, elements):

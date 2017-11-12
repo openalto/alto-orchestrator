@@ -5,3 +5,4 @@ jsonschema
 pyyaml
 requests
 sseclient-py
+pulp
