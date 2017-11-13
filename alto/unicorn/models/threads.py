@@ -92,15 +92,14 @@ class UpdateStreamThread(Thread):
             flow_obj = FlowDataProvider().get(query_item.flow_id)
             if flow_obj.has_domain(self.domain_name):
                 flow_obj.delete_path_after_hop(self.domain_name)
-            flow_obj.add_hop(next_hop)
 
             # Judge if the flow has reached the destination
-            if flow_obj.last_hop != "" and DomainDataProvider().has_ip(
-                    flow_obj.last_hop) and DomainDataProvider().get_domain(
-                flow_obj.last_hop).domain_name == DomainDataProvider().get_domain(flow_obj.dst_ip).domain_name:
+            if next_hop == "":
                 flow_obj.complete()
             else:
+                flow_obj.add_hop(next_hop)
                 next_flow_ids.append(flow_obj.flow_id)
+
         ThreadDataProvider().get_task_handler_thread(domain_query.query_id).path_query(next_flow_ids)
 
     def update_resource_query(self, domain_query):
