@@ -45,6 +45,7 @@ class UpdateStreamThread(Thread):
 
     def handle_update_event(self, update_event, callback=None):
         """Handle update event received from server"""
+        logger.debug("Handling update event: %s" % update_event)
         query_id = update_event["query-id"]
         response = update_event["response"]
         query_obj = QueryDataProvider().get(query_id)
@@ -149,6 +150,7 @@ class ControlStreamThread(Thread):
         logger.info("POST request to " + self.control_url)
 
         # Send to remote & get response
+        logger.debug("Sending query via control stream: %s" % request)
         response = requests.post(self.control_url, json=request, headers={'Content-type': 'application/json'})
         try:
             resp = json.loads(response.text)
@@ -351,6 +353,7 @@ class TasksHandlerThread(Thread):
 
     def resource_query_complete_operation(self):
         logger.info("Resource query update")
+        logger.debug("Query Provider: %s" % QueryDataProvider().get_all())
         constraints = list()
         response_whole = dict()
         response_whole["ane-matrix"] = list()
