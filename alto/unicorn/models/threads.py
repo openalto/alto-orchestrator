@@ -21,9 +21,11 @@ from alto.unicorn.logger import logger
 from alto.unicorn.models.constraints import Constraint, Term
 from alto.unicorn.models.domains import DomainDataProvider
 from alto.unicorn.models.flows import FlowDataProvider, Flow
+from alto.unicorn.models.hosts import HostDataProvider
 from alto.unicorn.models.jobs import Job
 from alto.unicorn.models.queries import QueryDataProvider, QueryItem, DomainQuery
 from alto.unicorn.models.singleton import SingletonType
+from alto.unicorn.scheduler.dtncontroller import DTNController
 from alto.unicorn.scheduler.scheduler import Scheduler
 from alto.rsa.converter import resource_query_transform
 
@@ -482,6 +484,7 @@ class SchedulerThread(Thread):
         # For every through domain, send a deploy request
         for domain_name in domain_bandwidth.keys():
             request = list()
+            # In the futhre, we make domain handle transfer by itself
             deploy_url = DomainDataProvider()[domain_name].deploy_url
             flow_bandwidth = domain_bandwidth[domain_name]
             for flow_id in flow_bandwidth.keys():
@@ -498,8 +501,16 @@ class SchedulerThread(Thread):
                         domain_name).get_query_item(flow_id).ingress_point
                 except:
                     ingress_point = flow_obj.last_hop
-                request.append({"ingress-point": ingress_point, "flow": flow, "bandwidth": flow_bandwidth[flow_id]})
-            requests.post(deploy_url, json=request)
+                transfer = {
+                    "ingress-point": ingress_point,
+                    "flow": flow,
+                    "src-dtn-mgmt-ip": HostDataProvider.get_management_ip(flow.src_ip),
+                    "dst-dtn-mgmt-ip": HostDataProvider.get_management_ip(flow.dst_ip),
+                    "bandwidth": flow_bandwidth[flow_id]
+                }
+                DTNController.start_transfer(transfer)
+                request.append(transfer)
+            # requests.post(deploy_url, json=request)
 
 
 class RequestBuilder(object):
