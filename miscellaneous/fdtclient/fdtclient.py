@@ -16,9 +16,10 @@ class FdtClient:
 
     NUM_STREAM = 33
 
-    def __init__(self, jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort):
+    def __init__(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort):
         self.jobId = jobId
         self.remoteHost = remoteHost
+        self.localHost = localHost
         self.remotePort = remotePort
         self.fdtJarLocation = fdtJarLocation
         self.fileName = fileName
@@ -75,7 +76,7 @@ class FdtClient:
                    "/dev/null", self.fileName])
 
         while len(self.clientPorts) < FdtClient.NUM_STREAM:
-            time.sleep(3)
+            time.sleep(2)
             self.__setClientPorts()
 
         print("start to generate qos file")
@@ -107,7 +108,7 @@ class FdtClient:
         for conn in connections:
             foreignAddr = str(self.remoteHost) + ":" + str(self.remotePort)
             if foreignAddr in conn:
-                localConnPattern = re.compile("127\.0\.0\.1:[0-9]+")
+                localConnPattern = re.compile(self.localHost + ":[0-9]+")
                 localConn = localConnPattern.findall(conn)[0]
                 port = int(localConn.split(":")[1])
                 if port not in self.clientPorts:
@@ -156,17 +157,17 @@ class FdtClientManager:
         speed = str(self.ip2Interface2Speed[localHost]).split(" ")[1]
         remotePort = 54321
 
-        fdtClient = self.__getAFdtClient(jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort)
+        fdtClient = self.__getAFdtClient(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort)
         fdtClient.startClient(speed)
         fdtClient.changeRate(rate)
 
 
 
-    def __getAFdtClient(self, jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort):
+    def __getAFdtClient(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort):
         if jobId in self.jobId2fdtClient:
             #do not need to create new fdtclient
             return self.jobId2fdtClient[jobId]
-        fdtClient = FdtClient(jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort)
+        fdtClient = FdtClient(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort)
         self.jobId2fdtClient[jobId] = fdtClient
         return fdtClient
 
