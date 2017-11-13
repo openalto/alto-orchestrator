@@ -39,9 +39,12 @@ class Scheduler(object):
         secondRun = IncreaseMaxFlowScheduler()
 
         finalResult = secondRun.getResult(firstInputData, firstRunResult)
-        finalResult.setFlowname2FlowId(self._flowname2flowid)
 
         return finalResult.getResult()
+
+
+    def getFlowIdFromFlowname(self, flowname):
+        return self._flowname2flowid[flowname]
 
 
     def __handleFinalResult(self, finalResult):
