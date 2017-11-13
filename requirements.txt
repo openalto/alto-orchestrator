@@ -6,3 +6,4 @@ pyyaml
 requests
 sseclient-py
 pulp
+Pyro4
