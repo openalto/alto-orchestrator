@@ -39,9 +39,16 @@ class FinalResult:
 
     def __init__(self):
         self.flowname2bw = {}
+        self.flowname2flowId = {}
+
+    def setFlowname2FlowId(self, flowname2flowId):
+        self.flowname2flowId = flowname2flowId
 
     def addFinalResult(self, flowname, bw):
         self.flowname2bw[flowname] = bw
+
+    def getFlowIdByFlowName(self, flowname):
+        return self.flowname2flowId[flowname]
 
     def getResult(self):
         return self.flowname2bw

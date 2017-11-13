@@ -17,6 +17,8 @@ class Scheduler(object):
 
         self._jobId2DataSize = {}
 
+        self._flowname2flowid = {}
+
     def schedule(self):
         logger.info("Start scheduling")
         # TODO: make a scheduler
@@ -37,6 +39,7 @@ class Scheduler(object):
         secondRun = IncreaseMaxFlowScheduler()
 
         finalResult = secondRun.getResult(firstInputData, firstRunResult)
+        finalResult.setFlowname2FlowId(self._flowname2flowid)
 
         return finalResult.getResult()
 
@@ -110,6 +113,7 @@ class Scheduler(object):
         leftStr = ""
         for term in terms:
             bijkStr = self.__getBIJKStrFromTerm(term)
+            self._flowname2flowid[bijkStr] = term.flow.flow_id
             leftStr += bijkStr + " "
 
         return leftStr + str(bw)
