@@ -91,7 +91,8 @@ class PathCompleteLookupEntry(object):
         try:
             task = TaskDataProvider().get_task_obj(int(task_id))
             res.body = json.dumps({
-                "complete": task.path_query_latest
+                "complete": task.path_query_latest,
+                "timestamp": task.path_query_update_time
             })
         except KeyError:
             res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
