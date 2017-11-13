@@ -48,7 +48,7 @@ class FdtClient:
     def __addClass(self, srcip, clientPort, rate):
         classname = str(self.jobId) + "_" + str(clientPort)
         f = open(self.qosfilename, 'a')
-        f.write("   class " + str(classname) + " commit " + str(rate) + " max " + str(rate))
+        f.write("   class " + str(classname) + " commit " + str(rate) + "kbit" + " max " + str(rate) + "kbit")
         f.write("      match4 src " + str(srcip) + " dport " + str(clientPort))
         #f.write("      match tcp dports " + str(clientPort))
         f.flush()
@@ -116,13 +116,16 @@ class FdtClient:
                     print("add a port: " + str(port))
 
 
-    def changeRate(self, newRate):
+    def changeRate(self, newRate, isFirstTime):
         eachRate = newRate / (len(self.clientPorts) - 1)
 
         for port in self.clientPorts:
             if int(port) == self.__getControlPort():
                 continue
-            self.__changeRateForClass(port, eachRate)
+            if isFirstTime:
+                self.__addClass(self.remoteHost, port, eachRate)
+            else:
+                self.__changeRateForClass(port, eachRate)
 
         self.__finishChangeRate()
 
@@ -157,19 +160,21 @@ class FdtClientManager:
         speed = str(self.ip2Interface2Speed[localHost]).split(" ")[1]
         remotePort = 54321
 
-        fdtClient = self.__getAFdtClient(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort)
-        fdtClient.startClient(speed)
-        fdtClient.changeRate(rate)
+        self.__startAll(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort, rate, speed)
 
 
 
-    def __getAFdtClient(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort):
+    def __startAll(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort, rate, speed):
         if jobId in self.jobId2fdtClient:
             #do not need to create new fdtclient
-            return self.jobId2fdtClient[jobId]
+            fdtClient = self.jobId2fdtClient[jobId]
+            #fdtClient.startClient(speed)
+            fdtClient.changeRate(newRate=rate, isFirstTime=False)
+            return
         fdtClient = FdtClient(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort)
         self.jobId2fdtClient[jobId] = fdtClient
-        return fdtClient
+        fdtClient.startClient(speed)
+        fdtClient.changeRate(newRate=rate, isFirstTime=True)
 
 
 if __name__ == '__main__':
