@@ -48,8 +48,8 @@ class FdtClient:
     def __addClass(self, srcip, clientPort, rate):
         classname = str(self.jobId) + "_" + str(clientPort)
         f = open(self.qosfilename, 'a')
-        f.write("   class " + str(classname) + " commit " + str(rate) + "kbit" + " max " + str(rate) + "kbit")
-        f.write("      match4 src " + str(srcip) + " dport " + str(clientPort))
+        f.write("   class " + str(classname) + " commit " + str(rate) + "kbit" + " max " + str(rate) + "kbit\n")
+        f.write("      match4 src " + str(srcip) + " dport " + str(clientPort) + "\n")
         #f.write("      match tcp dports " + str(clientPort))
         f.flush()
         f.close()
@@ -118,6 +118,8 @@ class FdtClient:
 
     def changeRate(self, newRate, isFirstTime):
         eachRate = newRate / (len(self.clientPorts) - 1)
+
+        eachRate = int(eachRate)
 
         for port in self.clientPorts:
             if int(port) == self.__getControlPort():
