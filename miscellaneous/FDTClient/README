@@ -1,3 +1,0 @@
-1. Install fdt at the storage server (http://monalisa.cern.ch/FDT/download.html)
-2. Start the fdt server (java -jar fdt.jar)
-3. Start this fdt client

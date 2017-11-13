@@ -1,6 +1,10 @@
+import sys
 import json
 import time
-from json import JSONDecodeError
+if sys.version[:3] < '3.5':
+    JSONDecodeError = ValueError
+else:
+    from json import JSONDecodeError
 from queue import Queue
 from threading import Lock, Thread
 
