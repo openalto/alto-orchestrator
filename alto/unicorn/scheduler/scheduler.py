@@ -38,7 +38,7 @@ class Scheduler(object):
 
         finalResult = secondRun.getResult(firstInputData, firstRunResult)
 
-        return finalResult
+        return finalResult.getResult()
 
 
     def __handleFinalResult(self, finalResult):
