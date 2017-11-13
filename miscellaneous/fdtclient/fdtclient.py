@@ -100,8 +100,23 @@ class FdtClientManager:
     def __init__(self):
         self.jobId2fdtClient = {}
 
+        self.ip2Interface = {}
+        self.__initializeIp2Interface()
 
-    def startDataTransferWithRate(self, jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort, rate):
+
+    def __initializeIp2Interface(self):
+        with open("./ip2interface", "r") as ip2interfaceFile:
+            for line in ip2interfaceFile:
+                ip = str(line).split(" ")[0]
+                interface = str(line).split(" ")[1]
+                self.ip2Interface[ip] = interface
+
+
+    def startDataTransferWithRate(self, jobId, remoteHost, localHost, fileName, rate):
+        fdtJarLocation = "./fdt.jar"
+        interface = self.ip2Interface[localHost]
+        remotePort = 54321
+
         fdtClient = self.__getAFdtClient(jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort)
         fdtClient.changeRate(rate)
 
