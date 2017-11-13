@@ -49,7 +49,7 @@ class Flow:
         if index == 0:
             return ""
         else:
-            return self._path[index-1].ip
+            return self._path[index - 1].ip
 
     def get_egress_point(self, domain_name):
         through_domains = self.through_domains
@@ -95,6 +95,11 @@ class Flow:
     def is_complete(self):
         return self._is_complete
 
+    @is_complete.setter
+    def is_complete(self, comp):
+        with self._lock:
+            self._is_complete = comp
+
     def complete(self):
         with self._lock:
             self._is_complete = True
@@ -102,6 +107,10 @@ class Flow:
     @property
     def path(self):
         return self._path
+
+    @property
+    def ip_path(self):
+        return [hop.ip for hop in self._path]
 
     def has_domain(self, domain_name):
         """
@@ -117,7 +126,7 @@ class Flow:
 
     def delete_path_after_hop(self, domain_name):
         """
-        Delete path after a hop (not including this hop)
+        Delete path after a hop (not including this domain)
         :param domain_name: the domain name of the hop
         """
         index = -1
@@ -125,7 +134,7 @@ class Flow:
             if hop.domain_name == domain_name:
                 index = self._path.index(hop)
         if index != -1:
-            self._path = self._path[:index+1]
+            self._path = self._path[:index + 1]
 
     @property
     def flow_tuple(self):
@@ -146,7 +155,8 @@ class Flow:
         :param hop_ip:
         """
         hop = Hop(hop_ip)
-        self._path.append(hop)
+        with self._lock:
+            self._path.append(hop)
 
     @property
     def job_id(self):

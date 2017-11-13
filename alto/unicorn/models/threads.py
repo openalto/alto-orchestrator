@@ -97,15 +97,17 @@ class UpdateStreamThread(Thread):
         next_flow_ids = list()
         for query_item, next_hop in path_data:
             flow_obj = FlowDataProvider().get(query_item.flow_id)
+            if next_hop in flow_obj.ip_path:
+                continue
             if flow_obj.has_domain(self.domain_name):
                 flow_obj.delete_path_after_hop(self.domain_name)
+                flow_obj.is_complete = False
 
             # Judge if the flow has reached the destination
-            if next_hop == "":
+            if next_hop == "" and not flow_obj.is_complete:
                 flow_obj.complete()
-            else:
+            if next_hop != "" and not flow_obj.is_complete:
                 flow_obj.add_hop(next_hop)
-            if not flow_obj.is_complete:
                 next_flow_ids.append(flow_obj.flow_id)
 
         if len(next_flow_ids) > 0:
