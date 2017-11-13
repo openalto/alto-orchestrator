@@ -351,6 +351,7 @@ class TasksHandlerThread(Thread):
 
     def resource_query_complete_operation(self):
         logger.info("Resource query update")
+        logger.debug("Query Provider: %s" % QueryDataProvider().get_all())
         constraints = list()
         response_whole = dict()
         response_whole["ane-matrix"] = list()

@@ -48,6 +48,9 @@ class QueryItem(object):
         result["ingress-point"] = self.ingress_point
         return result
 
+    def __repr__(self):
+        return str(self.to_dict())
+
 
 class DomainQuery(object):
     def __init__(self, query_id, domain_name):
@@ -91,6 +94,9 @@ class DomainQuery(object):
 
     def to_list(self):
         return [item.to_dict() for item in self._query_items.values()]
+
+    def __repr__(self):
+        return str(self.to_list())
 
 class Query(object):
     def __init__(self, query_id):
@@ -140,6 +146,16 @@ class Query(object):
             self._domain_query[domain_name] = DomainQuery(self._query_id, domain_name)
         return self._domain_query[domain_name]
 
+    def to_dict(self):
+        return {
+            "query-id": self._query_id,
+            "query-type": self._query_type,
+            "domain-query": self._domain_query
+        }
+
+    def __repr__(self):
+        return str(self.to_dict())
+
 
 class QueryDataProvider(metaclass=SingletonType):
     """
@@ -184,3 +200,6 @@ class QueryDataProvider(metaclass=SingletonType):
                 query_id = int(query_id)
             return self._queries[query_id]
         raise KeyError
+
+    def get_all(self):
+        return self._queries
