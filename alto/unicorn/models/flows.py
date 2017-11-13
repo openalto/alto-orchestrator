@@ -38,7 +38,7 @@ class Flow:
 
     @property
     def through_domains(self):
-        domains = list()  # type: List[str]
+        domains = list()  # type: list[str]
         domains.append(DomainDataProvider().get_domain(self._src_ip).domain_name)
         domains.extend([hop.domain_name for hop in self._path])
         return domains

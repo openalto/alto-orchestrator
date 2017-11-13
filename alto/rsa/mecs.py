@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 from itertools import groupby
-from pulp import LpAffineExpression, LpVariable, LpProblem, LpMaximize
-from .view import Element, View
+
+from alto.rsa.view import Element, View
+
 
 class EquivTransformation(object):
     def __init__(self):
@@ -10,6 +11,7 @@ class EquivTransformation(object):
 
     def __call__(self):
         pass
+
 
 class EquivAggregation(EquivTransformation):
     def __init__(self):
@@ -30,11 +32,13 @@ class EquivAggregation(EquivTransformation):
             nzv = v[0].nzv
             aggregated += list(map(lambda e: e.eid, v[1:]))
             bw = min(map(lambda e: e.bw, v))
-            cost = sum(map(lambda e: e.cost, v))
-            nelements += [Element(eid, nzv, bw, cost)]
+            # cost = sum(map(lambda e: e.cost, v))
+            # nelements += [Element(eid, nzv, bw, cost)]
+            nelements += [Element(eid, nzv, bw)]
 
         view = View(paths, nelements)
         return view.shrink(aggregated)
+
 
 class EquivDecomposition(EquivTransformation):
     def __init__(self):
