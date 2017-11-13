@@ -98,19 +98,22 @@ class FdtClient:
 class FdtClientManager:
 
     def __init__(self):
-        self.id2fdtClient = {}
+        self.jobId2fdtClient = {}
 
 
-    def getAFdtClientId(self, jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort):
+    def startDataTransferWithRate(self, jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort, rate):
+        fdtClient = self.__getAFdtClient(jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort)
+        fdtClient.changeRate(rate)
+
+
+
+    def __getAFdtClient(self, jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort):
+        if jobId in self.jobId2fdtClient:
+            #do not need to create new fdtclient
+            return self.jobId2fdtClient[jobId]
         fdtClient = FdtClient(jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort)
-        newID = len(self.id2fdtClient)
-        self.id2fdtClient[newID] = fdtClient
-        return newID
-
-
-    def changeRateForFdtClientId(self, fdtClientId, newRate):
-        fdtClient = self.id2fdtClient[fdtClientId]
-        fdtClient.changeRate(newRate)
+        self.jobId2fdtClient[jobId] = fdtClient
+        return fdtClient
 
 
 if __name__ == '__main__':
@@ -124,7 +127,7 @@ if __name__ == '__main__':
     port = int(sys.argv[2])
 
     daemon = Pyro4.Daemon(host=ip, port=port)
-    uri = daemon.register(FdtClientManager, objectId="FCM" + ip)
+    uri = daemon.register(FdtClientManager, objectId="FCM")
 
-    print("Ready. uri = ", uri)  # PYRO:FCM172.28.229.215@172.28.229.215:9999
+    print("Ready. uri = ", uri)  # PYRO:FCM@172.28.229.215:9999
     daemon.requestLoop()
