@@ -105,9 +105,11 @@ class UpdateStreamThread(Thread):
                 flow_obj.complete()
             else:
                 flow_obj.add_hop(next_hop)
+            if not flow_obj.is_complete:
                 next_flow_ids.append(flow_obj.flow_id)
 
-        ThreadDataProvider().get_task_handler_thread(domain_query.query_id).path_query(next_flow_ids)
+        if len(next_flow_ids) > 0:
+            ThreadDataProvider().get_task_handler_thread(domain_query.query_id).path_query(next_flow_ids)
 
     def update_resource_query(self, domain_query):
         """
