@@ -36,7 +36,7 @@ class FdtClient:
     def __generateQosConfFile(self, interface, speed):
         if not os.path.exists(self.qosfilename):
             f = open(self.qosfilename, 'w')
-            f.write("interface " + str(interface) + " world-in-" + str(interface) + " input rate " + str(speed))
+            f.writelines("interface " + str(interface) + " world-in-" + str(interface) + " input rate " + str(speed))
             f.flush()
             f.close()
 
@@ -48,8 +48,8 @@ class FdtClient:
     def __addClass(self, srcip, clientPort, rate):
         classname = str(self.jobId) + "_" + str(clientPort)
         f = open(self.qosfilename, 'a')
-        f.write("   class " + str(classname) + " commit " + str(rate) + "kbit" + " max " + str(rate) + "kbit\n")
-        f.write("      match4 src " + str(srcip) + " dport " + str(clientPort) + "\n")
+        f.writelines("   class " + str(classname) + " commit " + str(rate) + "kbit" + " max " + str(rate) + "kbit")
+        f.writelines("      match4 src " + str(srcip) + " dport " + str(clientPort))
         #f.write("      match tcp dports " + str(clientPort))
         f.flush()
         f.close()
