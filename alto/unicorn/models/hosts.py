@@ -21,6 +21,7 @@ class Host(object):
 
 class HostDataProvider(metaclass=SingletonType):
     def __init__(self):
+        super(HostDataProvider, self).__init__()
         self._host_ip_obj = dict()  # type: dict[str, Host]
 
     @property

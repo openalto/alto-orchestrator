@@ -6,8 +6,9 @@ from jsonschema import validate
 from alto.unicorn.data_model import Domain
 from alto.unicorn.data_provider import DomainDataProvider, ThreadDataProvider
 from alto.unicorn.logger import logger
+from alto.unicorn.models.tasks import TaskDataProvider
 from alto.unicorn.schemas import TASKS_SCHEMA, REGISTRY_SCHEMA
-from alto.unicorn.threads import TasksHandlerThread, UpdateStreamThread, ControlStreamThread
+from alto.unicorn.threads import TasksHandlerThread, UpdateStreamThread
 
 
 class RegisterEntry(object):
@@ -48,6 +49,16 @@ class TasksEntry(object):
 
         thread = TasksHandlerThread(info)
         thread.start()
+
+
+class TasksLookupEntry(object):
+    def on_get(self, req, res):
+        res.status = falcon.HTTP_200
+        tasks = TaskDataProvider().tasks
+        result = dict()
+        for task in tasks:
+            result[task.task_id] = task.to_dict()
+        res.body = json.dumps(result)
 
 
 def connect_to_server(domain_name, domain_data):

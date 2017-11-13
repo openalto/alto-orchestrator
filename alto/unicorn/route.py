@@ -1,4 +1,4 @@
-from alto.unicorn.entries import RegisterEntry, TasksEntry
+from alto.unicorn.entries import RegisterEntry, TasksEntry, TasksLookupEntry
 
 
 class Routes(object):
@@ -34,6 +34,7 @@ def set_route(app, config=None):
     # Add your routes here
     routes.add_route("/register", RegisterEntry, config)
     routes.add_route("/task", TasksEntry)
+    routes.add_route("/tasks_lookup", TasksLookupEntry)
 
     for i in routes:
         app.add_route(i, routes[i])

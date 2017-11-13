@@ -1,6 +1,9 @@
 import sys
 import json
 import time
+
+from alto.unicorn.models.tasks import Task
+
 if sys.version[:3] < '3.5':
     JSONDecodeError = ValueError
 else:
@@ -168,7 +171,7 @@ class TasksHandlerThread(Thread):
         super(TasksHandlerThread, self).__init__()
 
         # Tasks
-        self.tasks = tasks
+        self._task_obj = Task(task_content=tasks)
 
         # Flow ids
         self._flow_ids = list()
@@ -209,7 +212,7 @@ class TasksHandlerThread(Thread):
         self._resource_query_obj.query_type = Definitions.QueryType.RESOURCE_QUERY_TYPE
 
         # Get all flows of the set of tasks
-        self._flow_ids = self.get_flows(self.tasks)
+        self._flow_ids = self.get_flows(self._task_obj)
 
         # Get all unrecorded flow_ids, and set their path query id to self._path_query_id
         unrecorded_flow_ids = FlowDataProvider().get_flows_without_path_query_id(self._flow_ids,
@@ -395,7 +398,8 @@ class TasksHandlerThread(Thread):
         return grouped_flow_ids
 
     @staticmethod
-    def get_flows(tasks):
+    def get_flows(task_obj):
+        tasks = task_obj.task_content
         flow_ids = set()
         for task in tasks:
             jobs = task["jobs"]
@@ -413,6 +417,7 @@ class TasksHandlerThread(Thread):
                         flow_obj.job_id = job_obj.job_id
                         job_obj.add_flow(flow_obj)
                         flow_ids.add(flow_id)
+                task_obj.add_job(job_obj)
         return list(flow_ids)
 
 

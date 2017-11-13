@@ -20,7 +20,7 @@ class Job(object):
         """
         self._job_id = Job.gen_id(self)
         self._file_size = file_size
-        self._flows = dict()
+        self._flows = dict()  # type: dict[int, Flow]
 
     @property
     def job_id(self):
@@ -32,6 +32,10 @@ class Job(object):
 
     @property
     def flows(self):
+        """
+        :rtype: set[Flow]
+        :return:
+        """
         return set(self._flows.values())
 
     def add_flow(self, flow):
@@ -48,6 +52,14 @@ class Job(object):
             return self._flows[flow_id]
         else:
             raise KeyError
+
+    def to_dict(self):
+        result = dict()
+        result["job_id"] = self._job_id
+        result["flows"] = dict()
+        for flow in self.flows:
+            result["flows"][flow.flow_id] = flow.to_dict()
+        return result
 
 
 class JobDataProvider(metaclass=SingletonType):

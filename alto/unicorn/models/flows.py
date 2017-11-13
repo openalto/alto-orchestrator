@@ -156,6 +156,20 @@ class Flow:
     def job_id(self, job_id):
         self._job_id = job_id
 
+    def to_dict(self):
+        result = dict()
+        result["flow_id"] = self.flow_id
+        result["complete"] = self.is_complete
+        result["path"] = [hop.ip for hop in self.path]
+        result["protocol"] = self.protocol
+        result["src-ip"] = self._src_ip
+        if self._src_port:
+            result["src-port"] = self._src_port
+        result["dst-ip"] = self._dst_ip
+        if self._dst_port:
+            result["dst-port"] = self._dst_port
+        return result
+
 
 class FlowDataProvider(metaclass=SingletonType):
     """
