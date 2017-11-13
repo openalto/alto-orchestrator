@@ -119,7 +119,8 @@ class SimplifiedScheduler:
 
         for v in prob.variables():
             print(v.name, "=", v.varValue)
-            result.addFirstRunResult(str(v.name) + " = " + str(v.varValue))
+            if "B" in str(v.name):
+                result.addFirstRunResult(str(v.name) + " = " + str(v.varValue))
 
         return result
 
