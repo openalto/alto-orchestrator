@@ -40,7 +40,7 @@ class Scheduler(object):
 
         finalResult = secondRun.getResult(firstInputData, firstRunResult)
 
-        return finalResult.getResult()
+        return {self.getFlowIdFromFlowname(k): v for k, v in finalResult.getResult().items()}
 
 
     def getFlowIdFromFlowname(self, flowname):
