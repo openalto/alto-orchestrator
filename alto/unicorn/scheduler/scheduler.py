@@ -131,11 +131,11 @@ class Scheduler(object):
         srcIP = flow.src_ip
         srcPort = flow.src_port
 
-        srcHostId = self._IPPort2HostId(str(srcIP) + ":" + str(srcPort))
+        srcHostId = self._IPPort2HostId[str(srcIP) + ":" + str(srcPort)]
 
         dstIP = flow.dst_ip
         dstPort = flow.dst_port
 
-        dstHostId = self._IPPort2HostId(str(dstIP) + ":" + str(dstPort))
+        dstHostId = self._IPPort2HostId[str(dstIP) + ":" + str(dstPort)]
 
         return "B_" + str(job.job_id) + "_" + str(srcHostId) + "_" + str(dstHostId)
