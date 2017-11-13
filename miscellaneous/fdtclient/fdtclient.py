@@ -92,6 +92,8 @@ class FdtClient:
         out, err = proc.communicate()
         exitcode = proc.returncode
 
+        out = out.decode("utf-8")
+
         connections = out.split("\n")
 
         print("start to analyze connections")
