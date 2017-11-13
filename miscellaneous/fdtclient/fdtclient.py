@@ -72,7 +72,7 @@ class FdtClient:
                    "/dev/null", self.fileName])
 
         self.__setClientPorts()
-
+        print("start to generate qos file")
         self.__generateQosConfFile(self.interface, interfaceSpeed)
         print("started fdt")
 
@@ -87,11 +87,14 @@ class FdtClient:
 
     #tcp6       0      0 [UNKNOWN]:57052         qn-in-xbd.1e100.n:https ESTABLISHED -
     def __setClientPorts(self):
+        print("start to get netstat")
         proc = Popen(['netstat', '-ntp'], stdout=PIPE, stderr=PIPE)
         out, err = proc.communicate()
         exitcode = proc.returncode
 
         connections = out.split("\n")
+
+        print("start to analyze connections")
 
         for conn in connections:
             foreignAddr = str(self.remoteHost) + ":" + str(self.remotePort)
@@ -100,6 +103,7 @@ class FdtClient:
                 localConn = localConnPattern.findall(conn)[0]
                 port = int(localConn.split(":")[1])
                 self.clientPorts.append(port)
+                print("add a port: " + str(port))
 
 
     def changeRate(self, newRate):
