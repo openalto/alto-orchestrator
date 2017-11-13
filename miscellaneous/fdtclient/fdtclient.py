@@ -24,18 +24,20 @@ class FdtClient:
     #      match4 src 172.27.239.196
     def __generateQosConfFile(self, interface, speed):
         f = open(self.qosfilename, 'w')
-        f.write("interface " + str(interface) + " world-out in rate " + str(speed))
+        f.write("interface " + str(interface) + " world-in input rate " + str(speed))
         f.flush()
         f.close()
 
 
     #classname = jobID + clientport
+    #class c1 commit 26214400kbit max 15728640kbit
+    #  match src 10.10.14.7 dport 57464
     def __addClass(self, srcip, clientPort, rate):
         classname = str(self.jobId) + "_" + str(clientPort)
         f = open(self.qosfilename, 'a')
         f.write("   class " + str(classname) + " commit " + str(rate) + " max " + str(rate))
-        f.write("      match4 src " + str(srcip))
-        f.write("      match tcp dports " + str(clientPort))
+        f.write("      match4 src " + str(srcip) + " dport " + str(clientPort))
+        #f.write("      match tcp dports " + str(clientPort))
         f.flush()
         f.close()
 
@@ -62,8 +64,8 @@ class FdtClient:
 
         self.__setCLientPorts()
 
-        self.__generateQosConfFile(self.interface, f)
-        print("next step")
+        self.__generateQosConfFile(self.interface)
+        print("started fdt")
 
     #tcp6       0      0 [UNKNOWN]:57052         qn-in-xbd.1e100.n:https ESTABLISHED -
     def __setClientPorts(self):
