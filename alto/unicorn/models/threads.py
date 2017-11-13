@@ -506,11 +506,11 @@ class SchedulerThread(Thread):
                 transfer = {
                     "ingress-point": ingress_point,
                     "flow": flow_obj,
-                    "src-dtn-mgmt-ip": HostDataProvider.get_management_ip(flow_obj.src_ip),
-                    "dst-dtn-mgmt-ip": HostDataProvider.get_management_ip(flow_obj.dst_ip),
+                    "src-dtn-mgmt-ip": HostDataProvider().get_management_ip(flow_obj.src_ip),
+                    "dst-dtn-mgmt-ip": HostDataProvider().get_management_ip(flow_obj.dst_ip),
                     "bandwidth": flow_bandwidth[flow_id]
                 }
-                DTNController.start_transfer(transfer)
+                DTNController.start_transfer(DTNController, transfer) # FIXME: remove 'self' argument
                 request.append(transfer)
             # requests.post(deploy_url, json=request)
 
