@@ -10,4 +10,4 @@ Start fdtclient at a host with ip and port:
 # ./fdtclient HOSTIP HOSTPORT
 ```
 
-The uri for pyro4 should be "PYRO:FCM" + HOSTIP + "@" + HOSTIP + ":" + HOSTPORT
+The uri for pyro4 should be "PYRO:FCM@" + HOSTIP + ":" + HOSTPORT
