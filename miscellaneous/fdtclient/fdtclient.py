@@ -4,6 +4,7 @@ import re
 import Pyro4
 import sys
 import os
+import time
 
 
 
@@ -12,6 +13,8 @@ all qos for an interface should be specified in the same conf file
 different interfaces can use different conf file
 """
 class FdtClient:
+
+    NUM_STREAM = 33
 
     def __init__(self, jobId, remoteHost, fileName, fdtJarLocation, interface, remotePort):
         self.jobId = jobId
@@ -68,10 +71,13 @@ class FdtClient:
 
     #java -jar fdt.jar -c 10.10.14.6 -P 33 -wCount 100 -pull -d /dev/null /dev/zero
     def startClient(self, interfaceSpeed):
-        p = Popen(['java', '-jar', self.fdtJarLocation, '-c', self.remoteHost, '-P', '33', '-wCount', '100', '-pull', '-d',
+        p = Popen(['java', '-jar', self.fdtJarLocation, '-c', self.remoteHost, '-P', str(FdtClient.NUM_STREAM), '-wCount', '100', '-pull', '-d',
                    "/dev/null", self.fileName])
 
-        self.__setClientPorts()
+        while len(self.clientPorts) < FdtClient.NUM_STREAM:
+            time.sleep(3)
+            self.__setClientPorts()
+
         print("start to generate qos file")
         self.__generateQosConfFile(self.interface, interfaceSpeed)
         print("started fdt")
@@ -104,8 +110,9 @@ class FdtClient:
                 localConnPattern = re.compile("127\.0\.0\.1:[0-9]+")
                 localConn = localConnPattern.findall(conn)[0]
                 port = int(localConn.split(":")[1])
-                self.clientPorts.append(port)
-                print("add a port: " + str(port))
+                if port not in self.clientPorts:
+                    self.clientPorts.append(port)
+                    print("add a port: " + str(port))
 
 
     def changeRate(self, newRate):
