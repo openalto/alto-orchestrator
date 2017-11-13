@@ -475,8 +475,11 @@ class SchedulerThread(Thread):
         super(SchedulerThread, self).__init__()
 
     def run(self):
-        logger.info("Start a scheduling thread")
+        logger.info("Starting a scheduling thread...")
+        logger.debug("Input constraints: %s" % self._constraints)
         result = Scheduler(constraints=self._constraints).schedule()  # type: dict[int, int]
+        logger.debug("Output result: %s" % result)
+        logger.info("Handling the scheduling result...")
 
         # Assume result is a dict from flow-id to bandwidth
 

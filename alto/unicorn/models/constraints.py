@@ -22,6 +22,9 @@ class Term(object):
     def job(self):
         return self._job
 
+    def __repr__(self):
+        return "<flow:%s>" % self.flow.flow_id
+
 
 class Constraint(object):
     def __init__(self, bound=0):
@@ -53,3 +56,6 @@ class Constraint(object):
         """
         with self._lock:
             self._terms.add(term)
+
+    def __repr__(self):
+        return ' + '.join([str(t) for t in self.terms]) + ' <= ' + str(self.bound)
