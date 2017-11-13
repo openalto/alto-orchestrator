@@ -6,6 +6,7 @@ from jsonschema import validate
 from alto.unicorn.data_model import Domain
 from alto.unicorn.data_provider import DomainDataProvider, ThreadDataProvider
 from alto.unicorn.logger import logger
+from alto.unicorn.models.hosts import HostDataProvider
 from alto.unicorn.models.queries import Query
 from alto.unicorn.models.tasks import TaskDataProvider
 from alto.unicorn.schemas import TASKS_SCHEMA, REGISTRY_SCHEMA
@@ -62,6 +63,58 @@ class TasksLookupEntry(object):
         res.body = json.dumps(result)
 
 
+class TaskLookupEntry(object):
+    def on_get(self, req, res, task_id):
+        res.status = falcon.HTTP_200
+        try:
+            task = TaskDataProvider().get_task_obj(int(task_id))
+            res.body = json.dumps(task.to_dict())
+        except KeyError:
+            res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
+
+
+class ResourceQueryCompleteLookupEntry(object):
+    def on_get(self, req, res, task_id):
+        res.status = falcon.HTTP_200
+        try:
+            task = TaskDataProvider().get_task_obj(int(task_id))
+            res.body = json.dumps({
+                "complete": task.resource_query_complete,
+                "timestamp": task.resource_query_update_time
+            })
+        except KeyError:
+            res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
+
+
+class PathCompleteLookupEntry(object):
+    def on_get(self, req, res, task_id):
+        try:
+            task = TaskDataProvider().get_task_obj(int(task_id))
+            res.body = json.dumps({
+                "complete": task.path_query_latest,
+                "timestamp": task.path_query_update_time
+            })
+        except KeyError:
+            res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
+
+class ResourceLookupEntry(object):
+    def on_get(self, req, res, task_id):
+        res.status = falcon.HTTP_200
+        try:
+            task = TaskDataProvider().get_task_obj(int(task_id))
+            task_dict = dict()
+            handler_thread = task.task_handler_thread  # type: TasksHandlerThread
+            resource_query_obj = handler_thread.resource_query_obj  # type: Query
+            task_dict["query-id"] = resource_query_obj.query_id
+            domain_query_dict = resource_query_obj.domain_query
+            for domain_name in domain_query_dict:
+                task_dict[domain_name] = dict()
+                task_dict[domain_name]["request"] = domain_query_dict[domain_name].to_list()
+                task_dict[domain_name]["response"] = domain_query_dict[domain_name].response
+            res.body = json.dumps(task_dict)
+        except KeyError:
+            res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
+
 class ResourcesLookupEntry(object):
     def on_get(self, req, res):
         res.status = falcon.HTTP_200
@@ -79,6 +132,12 @@ class ResourcesLookupEntry(object):
                 task_dict[domain_name]["response"] = domain_query_dict[domain_name].response
             result[task.task_id] = task_dict
         res.body = json.dumps(result)
+
+
+class ManagementIPLookupEntry(object):
+    def on_get(self, req, res, ip):
+        res.status = falcon.HTTP_200
+        res.body = json.dumps({"management-ip": HostDataProvider().get_management_ip(ip)})
 
 
 def connect_to_server(domain_name, domain_data):

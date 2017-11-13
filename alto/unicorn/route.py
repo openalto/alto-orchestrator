@@ -1,4 +1,6 @@
-from alto.unicorn.entries import RegisterEntry, TasksEntry, TasksLookupEntry, ResourcesLookupEntry
+from alto.unicorn.entries import RegisterEntry, TasksEntry, TasksLookupEntry, ResourcesLookupEntry, \
+    ManagementIPLookupEntry, TaskLookupEntry, ResourceQueryCompleteLookupEntry, PathCompleteLookupEntry, \
+    ResourceLookupEntry
 
 
 class Routes(object):
@@ -32,10 +34,15 @@ routes = Routes()
 
 def set_route(app, config=None):
     # Add your routes here
-    routes.add_route("/register", RegisterEntry, config)
-    routes.add_route("/task", TasksEntry)
-    routes.add_route("/tasks_lookup", TasksLookupEntry)
-    routes.add_route("/resources_lookup", ResourcesLookupEntry)
+    routes.add_route("/register", RegisterEntry, config)  # POST
+    routes.add_route("/task", TasksEntry)  # POST
+    routes.add_route("/path_complete_lookup/{task_id}", PathCompleteLookupEntry)  # GET
+    routes.add_route("/task_lookup/{task_id}", TaskLookupEntry)  # GET
+    routes.add_route("/tasks_lookup", TasksLookupEntry)  # GET
+    routes.add_route("/resource_complete_lookup/{task_id}", ResourceQueryCompleteLookupEntry)  # GET
+    routes.add_route("/resource_lookup/{task_id}", ResourceLookupEntry)  # GET
+    routes.add_route("/resources_lookup", ResourcesLookupEntry)  # GET
+    routes.add_route("/management_ip_lookup/{ip}", ManagementIPLookupEntry)  # GET
 
     for i in routes:
         app.add_route(i, routes[i])
