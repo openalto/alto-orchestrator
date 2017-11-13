@@ -1,6 +1,7 @@
 import itertools
 from threading import Lock
 
+from alto.unicorn.models.hosts import Host
 from alto.unicorn.models.singleton import SingletonType
 
 
@@ -10,7 +11,7 @@ class Domain(object):
         self._update_url = ""
         self._control_url = ""
         self._deploy_url = ""
-        self._hosts = set()
+        self._hosts = list()  # type: list[Host]
         self._ingress_points = set()
         self._lock = Lock()
 
@@ -46,6 +47,9 @@ class Domain(object):
 
     @property
     def hosts(self):
+        """
+        :rtype: list[Host]
+        """
         return self._hosts
 
     @property
@@ -66,7 +70,8 @@ class Domain(object):
             if "deploy-url" in dic:
                 self._deploy_url = dic["deploy-url"]
             if "hosts" in dic:
-                self._hosts = set(dic["hosts"])
+                for host in dic["hosts"]:
+                    self._hosts.append(Host(host["host-ip"], host["management-ip"]))
             if "ingress-points" in dic:
                 self._ingress_points = set(dic["ingress-points"])
 
@@ -101,7 +106,9 @@ class DomainDataProvider(metaclass=SingletonType):
         domain = Domain(domain_name)
         domain.get_from_dict(data)
         self._domains[domain_name] = domain
-        for i in itertools.chain(data["hosts"], data["ingress-points"]):
+        for i in domain.hosts:
+            self._ip2domain[i.host_ip] = domain
+        for i in domain.ingress_points:
             self._ip2domain[i] = domain
 
         if callback:
