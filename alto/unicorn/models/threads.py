@@ -1,6 +1,9 @@
-import sys
 import json
+import sys
 import time
+
+from alto.unicorn.models.tasks import Task
+
 if sys.version[:3] < '3.5':
     JSONDecodeError = ValueError
 else:
@@ -94,18 +97,21 @@ class UpdateStreamThread(Thread):
         next_flow_ids = list()
         for query_item, next_hop in path_data:
             flow_obj = FlowDataProvider().get(query_item.flow_id)
+            if next_hop in flow_obj.ip_path:
+                continue
             if flow_obj.has_domain(self.domain_name):
                 flow_obj.delete_path_after_hop(self.domain_name)
-            flow_obj.add_hop(next_hop)
+                flow_obj.is_complete = False
 
             # Judge if the flow has reached the destination
-            if flow_obj.last_hop != "" and DomainDataProvider().has_ip(
-                    flow_obj.last_hop) and DomainDataProvider().get_domain(
-                flow_obj.last_hop).domain_name == DomainDataProvider().get_domain(flow_obj.dst_ip).domain_name:
+            if next_hop == "" and not flow_obj.is_complete:
                 flow_obj.complete()
-            else:
+            if next_hop != "" and not flow_obj.is_complete:
+                flow_obj.add_hop(next_hop)
                 next_flow_ids.append(flow_obj.flow_id)
-        ThreadDataProvider().get_task_handler_thread(domain_query.query_id).path_query(next_flow_ids)
+
+        if len(next_flow_ids) > 0:
+            ThreadDataProvider().get_task_handler_thread(domain_query.query_id).path_query(next_flow_ids)
 
     def update_resource_query(self, domain_query):
         """
@@ -169,7 +175,7 @@ class TasksHandlerThread(Thread):
         super(TasksHandlerThread, self).__init__()
 
         # Tasks
-        self.tasks = tasks
+        self._task_obj = Task(task_content=tasks, task_handler_thread=self)
 
         # Flow ids
         self._flow_ids = list()
@@ -210,7 +216,7 @@ class TasksHandlerThread(Thread):
         self._resource_query_obj.query_type = Definitions.QueryType.RESOURCE_QUERY_TYPE
 
         # Get all flows of the set of tasks
-        self._flow_ids = self.get_flows(self.tasks)
+        self._flow_ids = self.get_flows(self._task_obj)
 
         # Get all unrecorded flow_ids, and set their path query id to self._path_query_id
         unrecorded_flow_ids = FlowDataProvider().get_flows_without_path_query_id(self._flow_ids,
@@ -301,30 +307,32 @@ class TasksHandlerThread(Thread):
 
     def resource_query(self):
         with self._resource_query_lock:
+            logger.debug("Get resouirce query lock: resource_query")
             logger.info("Start resource query")
             self.complete_resource_query_number = 0
             domain_flow_ids = self.resource_query_group(self._flow_ids)
             self.all_resource_query_number = len(domain_flow_ids.keys())
 
-            for domain in domain_flow_ids.keys():
-                control_thread = ThreadDataProvider().get_control_thread(domain)  # type: ControlStreamThread
+            for domain_name in domain_flow_ids.keys():
+                control_thread = ThreadDataProvider().get_control_thread(domain_name)  # type: ControlStreamThread
+                domain_query = QueryDataProvider().get(self._resource_query_id).get_domain_query(domain_name)
                 request_builder = RequestBuilder(
                     Definitions.QueryAction.ADD,
                     Definitions.QueryType.RESOURCE_QUERY_TYPE,
                     self._resource_query_id
                 )
-                for flow_id in domain_flow_ids[domain]:
+                for flow_id in domain_flow_ids[domain_name]:
                     flow = FlowDataProvider().get(flow_id)
                     try:
-                        request_builder.add_item(flow,
-                                                 QueryDataProvider().get(flow.path_query_id).get_domain_query(
-                                                     domain).get_query_item(flow_id).ingress_point
-                                                 )
+                        ingress_point = QueryDataProvider().get(flow.path_query_id).get_domain_query(domain_name).get_query_item(
+                            flow_id).ingress_point
                     except KeyError:
-                        request_builder.add_item(flow, flow.last_hop)
+                        ingress_point = flow.last_hop
+                    request_builder.add_item(flow, ingress_point)
+                    domain_query.add_query_item(QueryItem(flow.flow_id, ingress_point))
                 request = request_builder.build()
                 control_thread.add_request(request, lambda req, res: logger.debug(
-                    "Resource query to " + domain + " get response:" + res.__str__()))
+                    "Resource query to " + domain_name + " get response:" + res.__str__()))
 
         while self.complete_resource_query_number < self.all_resource_query_number:
             time.sleep(Definitions.POLL_TIME)
@@ -343,6 +351,7 @@ class TasksHandlerThread(Thread):
         response_whole["anes"] = list()
 
         with self._resource_query_lock:
+            logger.debug("Get resouirce query lock: resource_query_complete_operation")
             for domain_name in self._resource_query_response:
                 response = self._resource_query_response[domain_name]
                 response_whole["ane-matrix"].extend(response["ane-matrix"])
@@ -366,6 +375,7 @@ class TasksHandlerThread(Thread):
 
     def add_resource_query_response(self, domain_name, response):
         with self._resource_query_lock:
+            logger.debug("Get resouirce query lock: add_resource_query_response")
             if domain_name not in self._resource_query_response.keys():
                 self.complete_resource_query_number += 1
             self._resource_query_response[domain_name] = response
@@ -396,7 +406,8 @@ class TasksHandlerThread(Thread):
         return grouped_flow_ids
 
     @staticmethod
-    def get_flows(tasks):
+    def get_flows(task_obj):
+        tasks = task_obj.task_content
         flow_ids = set()
         for task in tasks:
             jobs = task["jobs"]
@@ -414,7 +425,22 @@ class TasksHandlerThread(Thread):
                         flow_obj.job_id = job_obj.job_id
                         job_obj.add_flow(flow_obj)
                         flow_ids.add(flow_id)
+                task_obj.add_job(job_obj)
         return list(flow_ids)
+
+    @property
+    def path_query_obj(self):
+        """
+        :rtype: Query
+        """
+        return self._path_query_obj
+
+    @property
+    def resource_query_obj(self):
+        """
+        :rtype: Query
+        """
+        return self._resource_query_obj
 
 
 class SchedulerThread(Thread):
