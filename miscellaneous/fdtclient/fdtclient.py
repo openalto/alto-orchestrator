@@ -69,7 +69,7 @@ class FdtClient:
     #java -jar fdt.jar -c 10.10.14.6 -P 33 -wCount 100 -pull -d /dev/null /dev/zero
     def startClient(self, interfaceSpeed):
         p = Popen(['java', '-jar', self.fdtJarLocation, '-c', self.remoteHost, '-P', '33', '-wCount', '100', '-pull', '-d',
-                   self.fileName, '/dev/null'])
+                   "/dev/null", self.fileName])
 
         self.__setClientPorts()
 
