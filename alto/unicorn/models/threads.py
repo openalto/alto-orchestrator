@@ -91,6 +91,7 @@ class UpdateStreamThread(Thread):
         """
         :type domain_query: DomainQuery
         """
+        ThreadDataProvider().get_task_handler_thread(domain_query.query_id).add_path_query_response()
         query_items = domain_query.query_items
         response = domain_query.response
         path_data = list(zip(query_items, response))
@@ -199,6 +200,7 @@ class TasksHandlerThread(Thread):
         self._path_query_latest = False
         self._resource_query_latest = False
         self._resource_query_complete = False
+        self._path_query_update_time = 0
         self._resource_query_update_time = 0
 
         # Lock
@@ -384,6 +386,9 @@ class TasksHandlerThread(Thread):
             self._resource_query_update_time = int(time.time())
             self._resource_query_latest = False
 
+    def add_path_query_response(self):
+        self._path_query_update_time = int(time.time())
+
     @staticmethod
     def group_by_domain_name(flow_ids):
         group = dict()  # type: dict[str, list[int]]
@@ -456,6 +461,10 @@ class TasksHandlerThread(Thread):
     @property
     def resource_query_update_time(self):
         return self._resource_query_update_time
+
+    @property
+    def path_query_update_time(self):
+        return self._path_query_update_time
 
 
 class SchedulerThread(Thread):

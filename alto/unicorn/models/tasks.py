@@ -49,6 +49,10 @@ class Task(object):
         return self._task_handler_thread.path_query_latest
 
     @property
+    def path_query_update_time(self):
+        return self._task_handler_thread.path_query_update_time
+
+    @property
     def resource_query_complete(self):
         return self._task_handler_thread.resource_query_complete
 
