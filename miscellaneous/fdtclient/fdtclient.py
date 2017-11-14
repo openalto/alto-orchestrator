@@ -74,17 +74,18 @@ class FdtClient:
 
 
     #java -jar fdt.jar -c 10.10.14.6 -P 33 -wCount 100 -pull -d /dev/null /dev/zero
-    def startClient(self, interfaceSpeed):
+    def startClient(self, interfaceSpeed, alreadyUsedPorts):
         p = Popen(['java', '-jar', self.fdtJarLocation, '-c', self.remoteHost, '-P', str(FdtClient.NUM_STREAM), '-wCount', '100', '-pull', '-d',
                    "/dev/null", self.fileName])
 
         while len(self.clientPorts) < FdtClient.NUM_STREAM + 1:
             time.sleep(2)
-            self.__setClientPorts()
+            self.__setClientPorts(alreadyUsedPorts)
 
         print("start to generate qos file")
         self.__generateQosConfFile(self.interface, interfaceSpeed)
         print("started fdt")
+        return self.clientPorts
 
 
     def __getControlPort(self):
@@ -96,7 +97,7 @@ class FdtClient:
 
 
     #tcp6       0      0 [UNKNOWN]:57052         qn-in-xbd.1e100.n:https ESTABLISHED -
-    def __setClientPorts(self):
+    def __setClientPorts(self, alreadyUsedPorts):
         print("start to get netstat")
         proc = Popen(['netstat', '-ntp'], stdout=PIPE, stderr=PIPE)
         out, err = proc.communicate()
@@ -114,7 +115,7 @@ class FdtClient:
                 localConnPattern = re.compile(self.localHost + ":[0-9]+")
                 localConn = localConnPattern.findall(conn)[0]
                 port = int(localConn.split(":")[1])
-                if port not in self.clientPorts:
+                if port not in self.clientPorts and port not in alreadyUsedPorts:
                     self.clientPorts.append(port)
                     print("add a port: " + str(port))
 
@@ -141,6 +142,8 @@ class FdtClient:
 class FdtClientManager:
 
     def __init__(self):
+        self.alreadyusedports = []
+
         self.jobId2fdtClient = {}
 
         self.ip2Interface2Speed = {}
@@ -182,7 +185,9 @@ class FdtClientManager:
             return
         fdtClient = FdtClient(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort)
         self.jobId2fdtClient[jobId] = fdtClient
-        fdtClient.startClient(speed)
+        usedPorts =  fdtClient.startClient(speed, self.alreadyusedports)
+        for port in usedPorts:
+            self.alreadyusedports.append(port)
         if int(rate) > MAX_RATELIMIT:
             self.__fullyUtilize()
         else:
@@ -198,7 +203,7 @@ if __name__ == '__main__':
 
     ip = sys.argv[1]
     port = int(sys.argv[2])
-    
+
     shutil.rmtree("./fireqos-confs")
     os.makedirs("./fireqos-confs")
 
