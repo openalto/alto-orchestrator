@@ -5,6 +5,7 @@ import Pyro4
 import sys
 import os
 import time
+import shutil
 
 
 MAX_RATELIMIT = 80 * 1000 * 1000
@@ -26,7 +27,7 @@ class FdtClient:
         self.fdtJarLocation = fdtJarLocation
         self.fileName = fileName
         self.interface = interface
-        self.qosfilename = "./fireqos-" + str(interface) +".conf" # should be shared with different clients
+        self.qosfilename = "./fireqos-confs/fireqos-" + str(interface) +".conf" # should be shared with different clients
 
         self.clientPorts = []
 
@@ -197,6 +198,9 @@ if __name__ == '__main__':
 
     ip = sys.argv[1]
     port = int(sys.argv[2])
+    
+    shutil.rmtree("./fireqos-confs")
+    os.makedirs("./fireqos-confs")
 
     daemon = Pyro4.Daemon(host=ip, port=port)
     uri = daemon.register(FdtClientManager, objectId="FCM")
