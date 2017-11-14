@@ -7,6 +7,8 @@ import os
 import time
 
 
+MAX_RATELIMIT = 80 * 1000 * 1000
+
 
 """
 all qos for an interface should be specified in the same conf file
@@ -14,7 +16,7 @@ different interfaces can use different conf file
 """
 class FdtClient:
 
-    NUM_STREAM = 33
+    NUM_STREAM = 32
 
     def __init__(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort):
         self.jobId = jobId
@@ -75,7 +77,7 @@ class FdtClient:
         p = Popen(['java', '-jar', self.fdtJarLocation, '-c', self.remoteHost, '-P', str(FdtClient.NUM_STREAM), '-wCount', '100', '-pull', '-d',
                    "/dev/null", self.fileName])
 
-        while len(self.clientPorts) < FdtClient.NUM_STREAM:
+        while len(self.clientPorts) < FdtClient.NUM_STREAM + 1:
             time.sleep(2)
             self.__setClientPorts()
 
@@ -117,9 +119,7 @@ class FdtClient:
 
 
     def changeRate(self, newRate, isFirstTime):
-        eachRate = newRate / (len(self.clientPorts) - 1)
-
-        eachRate = int(eachRate)
+        eachRate = int(newRate / len(self.clientPorts) - 1)
 
         for port in self.clientPorts:
             if int(port) == self.__getControlPort():
@@ -155,6 +155,10 @@ class FdtClientManager:
                 self.ip2Interface2Speed[ip] = interface + " " + speed
 
 
+    def __fullyUtilize(self):
+        p = Popen(['fireqos', 'clear_all_qos'])
+
+
     # rate is kbit
     def startDataTransferWithRate(self, jobId, remoteHost, localHost, fileName, rate):
         fdtJarLocation = "./fdt.jar"
@@ -170,13 +174,18 @@ class FdtClientManager:
         if jobId in self.jobId2fdtClient:
             #do not need to create new fdtclient
             fdtClient = self.jobId2fdtClient[jobId]
-            #fdtClient.startClient(speed)
-            fdtClient.changeRate(newRate=rate, isFirstTime=False)
+            if int(rate) > MAX_RATELIMIT:
+                self.__fullyUtilize()
+            else:
+                fdtClient.changeRate(newRate=rate, isFirstTime=False)
             return
         fdtClient = FdtClient(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort)
         self.jobId2fdtClient[jobId] = fdtClient
         fdtClient.startClient(speed)
-        fdtClient.changeRate(newRate=rate, isFirstTime=True)
+        if int(rate) > MAX_RATELIMIT:
+            self.__fullyUtilize()
+        else:
+            fdtClient.changeRate(newRate=rate, isFirstTime=True)
 
 
 if __name__ == '__main__':
