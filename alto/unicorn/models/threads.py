@@ -391,11 +391,16 @@ class TasksHandlerThread(Thread):
     def add_resource_query_response(self, domain_name, response):
         with self._resource_query_lock:
             logger.debug("Get resouirce query lock: add_resource_query_response")
+            changed = False
             if domain_name not in self._resource_query_response.keys():
                 self.complete_resource_query_number += 1
-            self._resource_query_response[domain_name] = response
-            self._resource_query_update_time = int(time.time())
-            self._resource_query_latest = False
+                changed = True
+            if not changed:
+                changed = not TasksHandlerThread.responses_are_equal(response, self._resource_query_response[domain_name])
+            if changed:
+                self._resource_query_response[domain_name] = response
+                self._resource_query_update_time = int(time.time())
+                self._resource_query_latest = False
 
     def add_path_query_response(self):
         self._path_query_update_time = int(time.time())
@@ -417,6 +422,31 @@ class TasksHandlerThread(Thread):
                 group[domain_name] = list()
             group[domain_name].append(flow_id)
         return group
+
+    @staticmethod
+    def responses_are_equal(response1, response2):
+        response1_set = TasksHandlerThread.resource_response_to_set_of_tuples(response1)
+        response2_set = TasksHandlerThread.resource_response_to_set_of_tuples(response2)
+        equal = response1_set == response2_set
+        if equal:
+            logger.debug("Compare equal resource responses %s" % response1_set.__str__())
+        else:
+            logger.debug("Compare different resource responses %s and %s" % (response1_set.__str__(), response2_set.__str__()))
+        return equal
+
+    @staticmethod
+    def resource_response_to_set_of_tuples(response):
+        if type(response) == "str":
+            response = json.loads(response)
+        ane_matrix = response["ane_matrix"]
+        anes = response["anes"]
+        result = set()
+        items = set()
+        for vector, bandwidth in zip(ane_matrix, anes):
+            for item in vector:
+                items.add((item["coefficient"], item["flow-id"]))
+            result.add((items, bandwidth))
+        return result
 
     @staticmethod
     def resource_query_group(flow_ids):
