@@ -375,6 +375,7 @@ class TasksHandlerThread(Thread):
                 response_whole["ane-matrix"].extend(response["ane-matrix"])
                 response_whole["anes"].extend(response["anes"])
 
+            logger.debug("Combine to a set of constraints")
             response_whole = resource_query_transform(response_whole)
 
             for terms, bound in zip(response_whole["ane-matrix"], response_whole["anes"]):
@@ -388,6 +389,7 @@ class TasksHandlerThread(Thread):
                     constraint.add_term(Term(flow_obj.flow_id, coefficient, flow_obj.job_id))
                 constraints.append(constraint)
 
+            logger.debug("Creating constraint objects")
             SchedulerThread(constraints, self).start()
             self._resource_query_latest = True
 
@@ -428,27 +430,31 @@ class TasksHandlerThread(Thread):
 
     @staticmethod
     def responses_are_equal(response1, response2):
-        response1_set = TasksHandlerThread.resource_response_to_set_of_tuples(response1)
-        response2_set = TasksHandlerThread.resource_response_to_set_of_tuples(response2)
-        equal = response1_set == response2_set
+        response1_list = TasksHandlerThread.resource_response_to_list_of_tuples(response1)
+        response2_list = TasksHandlerThread.resource_response_to_list_of_tuples(response2)
+        equal = True
+        for item in response1_list:
+            if item not in response2_list:
+                equal = False
+                break
         if equal:
-            logger.debug("Compare equal resource responses %s" % response1_set.__str__())
+            logger.debug("Compare equal resource responses %s" % response1_list.__str__())
         else:
-            logger.debug("Compare different resource responses %s and %s" % (response1_set.__str__(), response2_set.__str__()))
+            logger.debug("Compare different resource responses %s and %s" % (response1_list.__str__(),         response2_list.__str__()))
         return equal
 
     @staticmethod
-    def resource_response_to_set_of_tuples(response):
+    def resource_response_to_list_of_tuples(response):
         if type(response) == "str":
             response = json.loads(response)
-        ane_matrix = response["ane_matrix"]
+        ane_matrix = response["ane-matrix"]
         anes = response["anes"]
-        result = set()
+        result = list()
         items = set()
         for vector, bandwidth in zip(ane_matrix, anes):
             for item in vector:
                 items.add((item["coefficient"], item["flow-id"]))
-            result.add((items, bandwidth))
+            result.append((items, bandwidth))
         return result
 
     @staticmethod

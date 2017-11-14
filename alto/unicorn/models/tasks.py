@@ -22,7 +22,7 @@ class Task(object):
 
     def to_dict(self):
         result = dict()
-        result["task_id"] = self._task_id
+        result["task-id"] = self._task_id
         result["jobs"] = dict()
         for job in self.jobs:
             result["jobs"][job.job_id] = job.to_dict()

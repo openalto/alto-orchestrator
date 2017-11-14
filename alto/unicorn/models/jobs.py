@@ -55,7 +55,7 @@ class Job(object):
 
     def to_dict(self):
         result = dict()
-        result["job_id"] = self._job_id
+        result["job-id"] = self._job_id
         result["flows"] = dict()
         for flow in self.flows:
             result["flows"][flow.flow_id] = flow.to_dict()

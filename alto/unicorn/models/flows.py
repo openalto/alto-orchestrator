@@ -168,7 +168,7 @@ class Flow:
 
     def to_dict(self):
         result = dict()
-        result["flow_id"] = self.flow_id
+        result["flow-id"] = self.flow_id
         result["complete"] = self.is_complete
         result["path"] = [hop.ip for hop in self.path]
         result["protocol"] = self.protocol

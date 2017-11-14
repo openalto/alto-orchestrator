@@ -128,7 +128,7 @@ class ResourceLookupEntry(object):
             task_dict = dict()
             handler_thread = task.task_handler_thread  # type: TasksHandlerThread
             resource_query_obj = handler_thread.resource_query_obj  # type: Query
-            task_dict["query-id"] = resource_query_obj.query_id
+            # task_dict["query-id"] = resource_query_obj.query_id
             domain_query_dict = resource_query_obj.domain_query
             for domain_name in domain_query_dict:
                 task_dict[domain_name] = dict()
