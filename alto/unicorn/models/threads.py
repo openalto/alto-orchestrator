@@ -206,6 +206,11 @@ class TasksHandlerThread(Thread):
         self._resource_query_complete = False
         self._path_query_update_time = 0
         self._resource_query_update_time = 0
+        self._scheduling_result_update_time = 0
+        self._scheduling_result_complete = False
+
+        # Scheduling result
+        self._scheduling_result = None
 
         # Lock
         self._path_query_lock = Lock()
@@ -332,7 +337,8 @@ class TasksHandlerThread(Thread):
                 for flow_id in domain_flow_ids[domain_name]:
                     flow = FlowDataProvider().get(flow_id)
                     try:
-                        ingress_point = QueryDataProvider().get(flow.path_query_id).get_domain_query(domain_name).get_query_item(
+                        ingress_point = QueryDataProvider().get(flow.path_query_id).get_domain_query(
+                            domain_name).get_query_item(
                             flow_id).ingress_point
                     except KeyError:
                         ingress_point = flow.last_hop
@@ -379,7 +385,7 @@ class TasksHandlerThread(Thread):
                     constraint.add_term(Term(flow_obj.flow_id, coefficient, flow_obj.job_id))
                 constraints.append(constraint)
 
-            SchedulerThread(constraints).start()
+            SchedulerThread(constraints, self).start()
             self._resource_query_latest = True
 
     def add_resource_query_response(self, domain_name, response):
@@ -393,6 +399,11 @@ class TasksHandlerThread(Thread):
 
     def add_path_query_response(self):
         self._path_query_update_time = int(time.time())
+
+    def update_scheduling_result(self, result):
+        self._scheduling_result_complete = True
+        self._scheduling_result_update_time = int(time.time())
+        self._scheduling_result = result
 
     @staticmethod
     def group_by_domain_name(flow_ids):
@@ -435,7 +446,8 @@ class TasksHandlerThread(Thread):
                             tup[3] = j["port"]
                         flow_id = FlowDataProvider().get_flow_id(tuple(tup))
                         flow_obj = FlowDataProvider().get(flow_id)
-                        flow_obj.job_id = job_obj.job_id
+                        if flow_obj.job_id == 0:
+                            flow_obj.job_id = job_obj.job_id
                         job_obj.add_flow(flow_obj)
                         flow_ids.add(flow_id)
                 task_obj.add_job(job_obj)
@@ -471,10 +483,23 @@ class TasksHandlerThread(Thread):
     def path_query_update_time(self):
         return self._path_query_update_time
 
+    @property
+    def scheduling_result_update_time(self):
+        return self._scheduling_result_update_time
+
+    @property
+    def scheduling_result_complete(self):
+        return self._scheduling_result_complete
+
+    @property
+    def scheduling_result(self):
+        return self._scheduling_result
+
 
 class SchedulerThread(Thread):
-    def __init__(self, constraints):
+    def __init__(self, constraints, task_handler_thread=None):
         self._constraints = constraints
+        self._task_handler_thread = task_handler_thread  # type: TasksHandlerThread
         super(SchedulerThread, self).__init__()
 
     def run(self):
@@ -485,6 +510,10 @@ class SchedulerThread(Thread):
         logger.info("Handling the scheduling result...")
 
         # Assume result is a dict from flow-id to bandwidth
+
+        # Update the status in task_handler
+        if self._task_handler_thread:
+            self._task_handler_thread.update_scheduling_result(result)
 
         # Group by through domains
         domain_bandwidth = dict()  # type: dict[str, dict[int, int]]
@@ -516,9 +545,9 @@ class SchedulerThread(Thread):
                     "dst-dtn-mgmt-ip": HostDataProvider().get_management_ip(flow_obj.dst_ip),
                     "bandwidth": flow_bandwidth[flow_id]
                 }
-                DTNController.start_transfer(DTNController, transfer) # FIXME: remove 'self' argument
+                DTNController.start_transfer(DTNController, transfer)  # FIXME: remove 'self' argument
                 request.append(transfer)
-            # requests.post(deploy_url, json=request)
+                # requests.post(deploy_url, json=request)
 
 
 class RequestBuilder(object):

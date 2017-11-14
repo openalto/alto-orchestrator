@@ -60,6 +60,18 @@ class Task(object):
     def resource_query_update_time(self):
         return self._task_handler_thread.resource_query_update_time
 
+    @property
+    def scheduling_result_update_time(self):
+        return self._task_handler_thread.scheduling_result_update_time
+
+    @property
+    def scheduling_result_complete(self):
+        return self._task_handler_thread.scheduling_result_complete
+
+    @property
+    def scheduling_result(self):
+        return self._task_handler_thread.scheduling_result
+
 
 class TaskDataProvider(metaclass=SingletonType):
     def __init__(self):
