@@ -26,11 +26,11 @@ class DTNController(object):
 
         flow = transfer['flow']
         jobId = flow._job_id
-        remoteHost = flow.src_ip
+        srcIp = flow.src_ip
         fileName = "/dev/zero"
-        localHost = flow.dst_ip
+        dstIp = flow.dst_ip
 
         rate = int(transfer['bandwidth'])
 
-        #def startDataTransferWithRate(self, jobId, remoteHost, localHost, fileName, rate):
-        fdtClientManager.startDataTransferWithRate(jobId, remoteHost, localHost, fileName, rate)
+        #def startDataTransferWithRate(self, jobId, srcIp, dstIp, fileName, rate):
+        fdtClientManager.startDataTransferWithRate(jobId, srcIp, dstIp, fileName, rate)

@@ -8,7 +8,7 @@ import time
 import shutil
 
 
-MAX_RATELIMIT = 80 * 1000 * 1000
+MAX_RATELIMIT = 90 * 1000 * 1000
 
 
 """
@@ -19,10 +19,10 @@ class FdtClient:
 
     NUM_STREAM = 32 #only transfer port
 
-    def __init__(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort):
+    def __init__(self, jobId, srcIp, dstIp, fileName, fdtJarLocation, interface, remotePort):
         self.jobId = jobId
-        self.remoteHost = remoteHost
-        self.localHost = localHost
+        self.srcIp = srcIp
+        self.dstIp = dstIp
         self.remotePort = remotePort
         self.fdtJarLocation = fdtJarLocation
         self.fileName = fileName
@@ -39,7 +39,7 @@ class FdtClient:
     def __generateQosConfFile(self, interface, speed):
         if not os.path.exists(self.qosfilename):
             f = open(self.qosfilename, 'w', newline='\n')
-            f.write("interface " + str(interface) + " world-in-" + str(interface) + " input rate " + str(speed) + "\n")
+            f.write("interface " + str(interface) + " world-out-" + str(interface) + " out rate " + str(speed) + "\n")
             f.flush()
             f.close()
 
@@ -47,12 +47,12 @@ class FdtClient:
 
     #classname = jobID + clientport
     #class c1 commit 26214400kbit max 15728640kbit
-    #  match src 10.10.14.7 dport 57464
-    def __addClass(self, srcip, clientPort, rate):
+    #  match dst 10.10.14.7 sport 57464
+    def __addClass(self, dstip, clientPort, rate):
         classname = str(self.jobId) + "_" + str(clientPort)
         f = open(self.qosfilename, 'a')
         f.write("   class " + str(classname) + " commit " + str(rate) + "kbit" + " max " + str(rate) + "kbit\n")
-        f.write("      match4 src " + str(srcip) + " dport " + str(clientPort) + "\n")
+        f.write("      match4 dst " + str(dstip) + " sport " + str(clientPort) + "\n")
         #f.write("      match tcp dports " + str(clientPort))
         f.flush()
         f.close()
@@ -75,7 +75,7 @@ class FdtClient:
 
     #java -jar fdt.jar -c 10.10.14.6 -P 33 -wCount 100 -pull -d /dev/null /dev/zero
     def startClient(self, interfaceSpeed, alreadyUsedPorts):
-        p = Popen(['java', '-jar', self.fdtJarLocation, '-c', self.remoteHost, '-P', str(FdtClient.NUM_STREAM), '-wCount', '100', '-pull', '-d',
+        p = Popen(['java', '-jar', self.fdtJarLocation, '-c', self.dstIp, '-P', str(FdtClient.NUM_STREAM), '-wCount', '100', '-d',
                    "/dev/null", self.fileName])
 
         while len(self.clientPorts) < FdtClient.NUM_STREAM + 1:
@@ -101,7 +101,7 @@ class FdtClient:
         print("start to get netstat")
         proc = Popen(['netstat', '-ntp'], stdout=PIPE, stderr=PIPE)
         out, err = proc.communicate()
-        exitcode = proc.returncode
+        #exitcode = proc.returncode
 
         out = out.decode("utf-8")
 
@@ -109,10 +109,10 @@ class FdtClient:
 
         print("start to analyze connections")
 
-        foreignAddr = str(self.remoteHost) + ":" + str(self.remotePort)
+        foreignAddr = str(self.dstIp) + ":" + str(self.remotePort)
         for conn in connections:
             if foreignAddr in conn:
-                localConnPattern = re.compile(self.localHost + ":[0-9]+")
+                localConnPattern = re.compile(self.srcIp + ":[0-9]+")
                 localConn = localConnPattern.findall(conn)[0]
                 port = int(localConn.split(":")[1])
                 if port not in self.clientPorts and port not in alreadyUsedPorts:
@@ -127,7 +127,7 @@ class FdtClient:
             if int(port) == self.__getControlPort():
                 continue
             if isFirstTime:
-                self.__addClass(self.remoteHost, port, eachRate)
+                self.__addClass(self.dstIp, port, eachRate)
             else:
                 self.__changeRateForClass(port, eachRate)
 
@@ -164,17 +164,17 @@ class FdtClientManager:
 
 
     # rate is kbit
-    def startDataTransferWithRate(self, jobId, remoteHost, localHost, fileName, rate):
+    def startDataTransferWithRate(self, jobId, srcIp, dstIp, fileName, rate):
         fdtJarLocation = "./fdt.jar"
-        interface = str(self.ip2Interface2Speed[localHost]).split(" ")[0]
-        speed = str(self.ip2Interface2Speed[localHost]).split(" ")[1]
+        interface = str(self.ip2Interface2Speed[srcIp]).split(" ")[0]
+        speed = str(self.ip2Interface2Speed[srcIp]).split(" ")[1]
         remotePort = 54321
 
-        self.__startAll(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort, rate, speed)
+        self.__startAll(jobId, srcIp, dstIp, fileName, fdtJarLocation, interface, remotePort, rate, speed)
 
 
 
-    def __startAll(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort, rate, speed):
+    def __startAll(self, jobId, srcIp, dstIp, fileName, fdtJarLocation, interface, remotePort, rate, speed):
         if jobId in self.jobId2fdtClient:
             #do not need to create new fdtclient
             fdtClient = self.jobId2fdtClient[jobId]
@@ -183,7 +183,7 @@ class FdtClientManager:
             else:
                 fdtClient.changeRate(newRate=rate, isFirstTime=False)
             return
-        fdtClient = FdtClient(jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort)
+        fdtClient = FdtClient(jobId, srcIp, dstIp, fileName, fdtJarLocation, interface, remotePort)
         self.jobId2fdtClient[jobId] = fdtClient
         usedPorts =  fdtClient.startClient(speed, self.alreadyusedports)
         for port in usedPorts:
