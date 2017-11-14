@@ -199,6 +199,7 @@ class TasksHandlerThread(Thread):
         self._path_query_latest = False
         self._resource_query_latest = False
         self._resource_query_complete = False
+        self._resource_query_update_time = 0
 
         # Lock
         self._path_query_lock = Lock()
@@ -310,6 +311,7 @@ class TasksHandlerThread(Thread):
             logger.debug("Get resouirce query lock: resource_query")
             logger.info("Start resource query")
             self.complete_resource_query_number = 0
+
             domain_flow_ids = self.resource_query_group(self._flow_ids)
             self.all_resource_query_number = len(domain_flow_ids.keys())
 
@@ -379,6 +381,7 @@ class TasksHandlerThread(Thread):
             if domain_name not in self._resource_query_response.keys():
                 self.complete_resource_query_number += 1
             self._resource_query_response[domain_name] = response
+            self._resource_query_update_time = int(time.time())
             self._resource_query_latest = False
 
     @staticmethod
@@ -441,6 +444,18 @@ class TasksHandlerThread(Thread):
         :rtype: Query
         """
         return self._resource_query_obj
+
+    @property
+    def path_query_latest(self):
+        return self._path_query_latest
+
+    @property
+    def resource_query_complete(self):
+        return self._resource_query_complete
+
+    @property
+    def resource_query_update_time(self):
+        return self._resource_query_update_time
 
 
 class SchedulerThread(Thread):

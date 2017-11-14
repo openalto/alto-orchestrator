@@ -44,6 +44,18 @@ class Task(object):
     def task_content(self):
         return self._task_content
 
+    @property
+    def path_query_latest(self):
+        return self._task_handler_thread.path_query_latest
+
+    @property
+    def resource_query_complete(self):
+        return self._task_handler_thread.resource_query_complete
+
+    @property
+    def resource_query_update_time(self):
+        return self._task_handler_thread.resource_query_update_time
+
 
 class TaskDataProvider(metaclass=SingletonType):
     def __init__(self):
@@ -65,4 +77,7 @@ class TaskDataProvider(metaclass=SingletonType):
         return task_id in self._id_tasks
 
     def get_task_obj(self, task_id):
+        """
+        :rtype: Task
+        """
         return self._id_tasks[task_id]
