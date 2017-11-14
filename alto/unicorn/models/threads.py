@@ -322,7 +322,7 @@ class TasksHandlerThread(Thread):
 
     def resource_query(self):
         with self._resource_query_lock:
-            logger.debug("Get resouirce query lock: resource_query")
+            logger.debug("Get resouirce query lock: resource_query_1")
             logger.info("Start resource query")
             self.complete_resource_query_number = 0
 
@@ -350,13 +350,16 @@ class TasksHandlerThread(Thread):
                 request = request_builder.build()
                 control_thread.add_request(request, lambda req, res: logger.debug(
                     "Resource query to " + domain_name + " get response:" + res.__str__()))
+        logger.debug("Release resouirce query lock: resource_query_1")
 
         while self.complete_resource_query_number < self.all_resource_query_number:
             time.sleep(Definitions.POLL_TIME)
 
         with self._resource_query_lock:
+            logger.debug("Get resouirce query lock: resource_query_2")
             self._resource_query_complete = True
             logger.info("Resource query complete, contains " + str(self.all_resource_query_number) + " domains")
+        logger.debug("Release resouirce query lock: resource_query_2")
 
         self.resource_query_complete_operation()
 
@@ -392,6 +395,7 @@ class TasksHandlerThread(Thread):
             logger.debug("Creating constraint objects")
             SchedulerThread(constraints, self).start()
             self._resource_query_latest = True
+        logger.debug("Resource query lock release: resource_query_complete_operation")
 
     def add_resource_query_response(self, domain_name, response):
         with self._resource_query_lock:
@@ -406,6 +410,7 @@ class TasksHandlerThread(Thread):
                 self._resource_query_response[domain_name] = response
                 self._resource_query_update_time = int(time.time())
                 self._resource_query_latest = False
+        logger.debug("Realase resource query: add resource query response")
 
     def add_path_query_response(self):
         self._path_query_update_time = int(time.time())
@@ -453,7 +458,12 @@ class TasksHandlerThread(Thread):
         items = set()
         for vector, bandwidth in zip(ane_matrix, anes):
             for item in vector:
-                items.add((item["coefficient"], item["flow-id"]))
+                print(item)
+                try:
+                    coefficient = item["coefficient"]
+                except KeyError:
+                    coefficient = 1
+                items.add((coefficient, item["flow-id"]))
             result.append((items, bandwidth))
         return result
 
