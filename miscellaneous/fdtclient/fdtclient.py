@@ -17,7 +17,7 @@ different interfaces can use different conf file
 """
 class FdtClient:
 
-    NUM_STREAM = 32
+    NUM_STREAM = 32 #only transfer port
 
     def __init__(self, jobId, remoteHost, localHost, fileName, fdtJarLocation, interface, remotePort):
         self.jobId = jobId
@@ -29,7 +29,7 @@ class FdtClient:
         self.interface = interface
         self.qosfilename = "./fireqos-confs/fireqos-" + str(interface) +".conf" # should be shared with different clients
 
-        self.clientPorts = []
+        self.clientPorts = []  #includes control port
 
 
 
@@ -109,8 +109,8 @@ class FdtClient:
 
         print("start to analyze connections")
 
+        foreignAddr = str(self.remoteHost) + ":" + str(self.remotePort)
         for conn in connections:
-            foreignAddr = str(self.remoteHost) + ":" + str(self.remotePort)
             if foreignAddr in conn:
                 localConnPattern = re.compile(self.localHost + ":[0-9]+")
                 localConn = localConnPattern.findall(conn)[0]
@@ -188,6 +188,8 @@ class FdtClientManager:
         usedPorts =  fdtClient.startClient(speed, self.alreadyusedports)
         for port in usedPorts:
             self.alreadyusedports.append(port)
+
+        print("already used ports", self.alreadyusedports)
         if int(rate) > MAX_RATELIMIT:
             self.__fullyUtilize()
         else:
@@ -208,7 +210,9 @@ if __name__ == '__main__':
     os.makedirs("./fireqos-confs")
 
     daemon = Pyro4.Daemon(host=ip, port=port)
-    uri = daemon.register(FdtClientManager, objectId="FCM")
+
+    fcm = FdtClientManager()
+    uri = daemon.register(fcm, objectId="FCM")
 
     print("Ready. uri = ", uri)  # PYRO:FCM@172.28.229.215:9999
     daemon.requestLoop()
