@@ -42,6 +42,12 @@ class QueryItem(object):
     def flow(self):
         return FlowDataProvider().get(self._flow_id)
 
+    def to_dict(self):
+        result = dict()
+        result["flow"] = self.flow.to_dict()
+        result["ingress-point"] = self.ingress_point
+        return result
+
 
 class DomainQuery(object):
     def __init__(self, query_id, domain_name):
@@ -83,6 +89,8 @@ class DomainQuery(object):
     def get_query_item(self, flow_id):
         return self._query_items[flow_id]
 
+    def to_list(self):
+        return [item.to_dict() for item in self._query_items.values()]
 
 class Query(object):
     def __init__(self, query_id):
@@ -112,6 +120,10 @@ class Query(object):
     def domain_query(self, domain_query):
         with self._lock:
             self._domain_query = domain_query
+
+    @property
+    def domain_queries(self):
+        return self._domain_query.values()
 
     def add(self, domain_query):
         """

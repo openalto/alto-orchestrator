@@ -10,10 +10,11 @@ class Task(object):
         Task._next_id += 1
         return Task._next_id - 1
 
-    def __init__(self, task_content):
+    def __init__(self, task_content, task_handler_thread=None):
         self._jobs = list()  # type: list[Job]
         self._task_id = Task._gen_id()
         self._task_content = task_content
+        self._task_handler_thread = task_handler_thread
         TaskDataProvider().add_task(self)
 
     def add_job(self, job):
@@ -26,6 +27,10 @@ class Task(object):
         for job in self.jobs:
             result["jobs"][job.job_id] = job.to_dict()
         return result
+
+    @property
+    def task_handler_thread(self):
+        return self._task_handler_thread
 
     @property
     def task_id(self):
