@@ -127,7 +127,7 @@ class FdtClient:
             if int(port) == self.__getControlPort():
                 continue
             if isFirstTime:
-                self.__addClass(self.remoteHost, port, eachRate)
+                self.__addClass(self.dstIp, port, eachRate)
             else:
                 self.__changeRateForClass(port, eachRate)
 
