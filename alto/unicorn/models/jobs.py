@@ -5,7 +5,7 @@ from alto.unicorn.models.singleton import SingletonType
 
 
 class Job(object):
-    _next_id = 0
+    _next_id = 1
     _static_lock = Lock()
 
     @staticmethod

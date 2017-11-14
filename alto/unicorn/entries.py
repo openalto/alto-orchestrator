@@ -73,6 +73,21 @@ class TaskLookupEntry(object):
             res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
 
 
+class PathCompleteLookupEntry(object):
+    def on_get(self, req, res, task_id):
+        try:
+            task = TaskDataProvider().get_task_obj(int(task_id))
+            res.body = json.dumps({
+                "complete": task.path_query_latest,
+                "timestamp": task.path_query_update_time
+            })
+        except KeyError:
+            res.body = json.dumps({
+                "complete": False,
+                "timestamp": 0
+            })
+
+
 class ResourceQueryCompleteLookupEntry(object):
     def on_get(self, req, res, task_id):
         res.status = falcon.HTTP_200
@@ -83,19 +98,27 @@ class ResourceQueryCompleteLookupEntry(object):
                 "timestamp": task.resource_query_update_time
             })
         except KeyError:
-            res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
+            res.body = json.dumps({
+                "complete": False,
+                "timestamp": 0
+            })
 
 
-class PathCompleteLookupEntry(object):
+class SchedulingCompleteLookupEntry(object):
     def on_get(self, req, res, task_id):
+        res.status = falcon.HTTP_200
         try:
             task = TaskDataProvider().get_task_obj(int(task_id))
             res.body = json.dumps({
-                "complete": task.path_query_latest,
-                "timestamp": task.path_query_update_time
+                "complete": task.scheduling_result_complete,
+                "timestamp": task.scheduling_result_update_time
             })
         except KeyError:
-            res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
+            res.body = json.dumps({
+                "complete": False,
+                "timestamp": 0
+            })
+
 
 class ResourceLookupEntry(object):
     def on_get(self, req, res, task_id):
@@ -115,6 +138,7 @@ class ResourceLookupEntry(object):
         except KeyError:
             res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
 
+
 class ResourcesLookupEntry(object):
     def on_get(self, req, res):
         res.status = falcon.HTTP_200
@@ -132,6 +156,25 @@ class ResourcesLookupEntry(object):
                 task_dict[domain_name]["response"] = domain_query_dict[domain_name].response
             result[task.task_id] = task_dict
         res.body = json.dumps(result)
+
+class SchedulingResultLookupEntry(object):
+    def on_get(self, req, res, task_id):
+        res.status = falcon.HTTP_200
+        try:
+            task = TaskDataProvider().get_task_obj(int(task_id))
+            scheduling_result = task.scheduling_result
+            jobs = task.jobs
+            task_dict = dict()
+            for job in jobs:
+                flows = job.flows
+                job_dict = dict()
+                for flow in flows:
+                    job_dict[flow.flow_id] = flow.to_dict()
+                    job_dict[flow.flow_id]["avail-bw"] = scheduling_result[flow.flow_id]
+                task_dict[job.job_id] = job_dict
+            res.body = json.dumps(task_dict)
+        except KeyError:
+            res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
 
 
 class ManagementIPLookupEntry(object):

@@ -1,6 +1,6 @@
 from alto.unicorn.entries import RegisterEntry, TasksEntry, TasksLookupEntry, ResourcesLookupEntry, \
     ManagementIPLookupEntry, TaskLookupEntry, ResourceQueryCompleteLookupEntry, PathCompleteLookupEntry, \
-    ResourceLookupEntry
+    ResourceLookupEntry, SchedulingCompleteLookupEntry, SchedulingResultLookupEntry
 
 
 class Routes(object):
@@ -42,6 +42,8 @@ def set_route(app, config=None):
     routes.add_route("/resource_complete_lookup/{task_id}", ResourceQueryCompleteLookupEntry)  # GET
     routes.add_route("/resource_lookup/{task_id}", ResourceLookupEntry)  # GET
     routes.add_route("/resources_lookup", ResourcesLookupEntry)  # GET
+    routes.add_route("/scheduling_complete_lookup/{task_id}", SchedulingCompleteLookupEntry)  # GET
+    routes.add_route("/scheduling_result_lookup/{task_id}", SchedulingResultLookupEntry)  # GET
     routes.add_route("/management_ip_lookup/{ip}", ManagementIPLookupEntry)  # GET
 
     for i in routes:
