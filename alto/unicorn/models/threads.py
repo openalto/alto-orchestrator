@@ -94,11 +94,11 @@ class UpdateStreamThread(Thread):
         """
         :type domain_query: DomainQuery
         """
-        ThreadDataProvider().get_task_handler_thread(domain_query.query_id).add_path_query_response()
         query_items = domain_query.query_items
         response = domain_query.response
         path_data = list(zip(query_items, response))
         next_flow_ids = list()
+        changed = False
         for query_item, next_hop in path_data:
             flow_obj = FlowDataProvider().get(query_item.flow_id)
             if next_hop in flow_obj.ip_path:
@@ -106,6 +106,7 @@ class UpdateStreamThread(Thread):
             if flow_obj.has_domain(self.domain_name):
                 flow_obj.delete_path_after_hop(self.domain_name)
                 flow_obj.is_complete = False
+                changed = True
 
             # Judge if the flow has reached the destination
             if next_hop == "" and not flow_obj.is_complete:
@@ -113,7 +114,9 @@ class UpdateStreamThread(Thread):
             if next_hop != "" and not flow_obj.is_complete:
                 flow_obj.add_hop(next_hop)
                 next_flow_ids.append(flow_obj.flow_id)
-
+                changed = True
+        if changed:
+            ThreadDataProvider().get_task_handler_thread(domain_query.query_id).add_path_query_response()
         if len(next_flow_ids) > 0:
             ThreadDataProvider().get_task_handler_thread(domain_query.query_id).path_query(next_flow_ids)
 
