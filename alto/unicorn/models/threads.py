@@ -379,7 +379,7 @@ class TasksHandlerThread(Thread):
                 response_whole["anes"].extend(response["anes"])
 
             logger.debug("Combine to a set of constraints")
-            response_whole = resource_query_transform(response_whole)
+            # response_whole = resource_query_transform(response_whole)
 
             for terms, bound in zip(response_whole["ane-matrix"], response_whole["anes"]):
                 constraint = Constraint(bound["availbw"])
