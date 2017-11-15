@@ -157,24 +157,28 @@ class ResourcesLookupEntry(object):
             result[task.task_id] = task_dict
         res.body = json.dumps(result)
 
+
 class SchedulingResultLookupEntry(object):
     def on_get(self, req, res, task_id):
         res.status = falcon.HTTP_200
         try:
             task = TaskDataProvider().get_task_obj(int(task_id))
-            scheduling_result = task.scheduling_result
-            jobs = task.jobs
-            task_dict = dict()
-            for job in jobs:
-                flows = job.flows
-                job_dict = dict()
-                for flow in flows:
-                    job_dict[flow.flow_id] = flow.to_dict()
-                    job_dict[flow.flow_id]["avail-bw"] = scheduling_result[flow.flow_id]
-                task_dict[job.job_id] = job_dict
-            res.body = json.dumps(task_dict)
         except KeyError:
             res.body = json.dumps({"error": "orchestrator doesn't have such task id"})
+            return
+        scheduling_result = task.scheduling_result
+        jobs = task.jobs
+        task_dict = dict()
+        for job in jobs:
+            flows = job.flows
+            job_dict = dict()
+            for flow in flows:
+                if flow.flow_id not in scheduling_result.keys():
+                    continue
+                job_dict[flow.flow_id] = flow.to_dict()
+                job_dict[flow.flow_id]["avail-bw"] = scheduling_result[flow.flow_id]
+            task_dict[job.job_id] = job_dict
+        res.body = json.dumps(task_dict)
 
 
 class ManagementIPLookupEntry(object):
