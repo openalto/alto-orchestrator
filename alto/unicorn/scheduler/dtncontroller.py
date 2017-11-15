@@ -20,7 +20,7 @@ class DTNController(object):
         ))
 
         # PYRO:FCM@172.28.229.215:9999
-        uri = "PYRO:FCM@" + transfer['dst-dtn-mgmt-ip'] + ":9999"
+        uri = "PYRO:FCM@" + transfer['src-dtn-mgmt-ip'] + ":9999"
 
         fdtClientManager = Pyro4.Proxy(uri)
 
