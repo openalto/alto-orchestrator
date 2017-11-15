@@ -11,7 +11,7 @@ class SimplifiedScheduler:
 
         self.jobId2DataSize = {}
 
-        self.bsmall = LpVariable("bsmall", 0)
+        self.bsmall = LpVariable("bsmall", 0.0)
 
         self.jobId2Num = {}
 
@@ -120,7 +120,9 @@ class SimplifiedScheduler:
         for v in prob.variables():
             print(v.name, "=", v.varValue)
             if "B" in str(v.name):
-                result.addFirstRunResult(str(v.name) + " = " + str(v.varValue))
+                jobId = str(v.name).split("_")[1]
+                safeValue = int(v.varValue / int(self.jobId2DataSize[jobId])) * int(self.jobId2DataSize[jobId])
+                result.addFirstRunResult(str(v.name) + " = " + str(safeValue))
 
         return result
 
