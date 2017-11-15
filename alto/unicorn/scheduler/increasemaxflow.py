@@ -255,6 +255,7 @@ class IncreaseMaxFlowScheduler:
 
     def getResult(self, rsaInput, firstRunInput):
         result = FinalResult()
+        mustfinish = False
         while 1:
             self.setupAllGlobalVars()
 
@@ -280,7 +281,7 @@ class IncreaseMaxFlowScheduler:
                         finish = False
                         break
 
-            if finish:
+            if finish or mustfinish:
 
                 bname2bw = {}
                 for line in firstRunInput.getLines():
@@ -315,8 +316,9 @@ class IncreaseMaxFlowScheduler:
                 return result
 
             if self.globalRound == -1:
-                print("cannot find the result")
-                break
+                print("find the final result")
+                mustfinish = True
+                #break
             else:
                 self.globalRound += 1
 
