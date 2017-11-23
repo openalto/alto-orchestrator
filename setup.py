@@ -30,6 +30,7 @@ setup(
     long_description=read("README.rst"),
     packages=find_packages(),
     package_data={"alto.unicorn": ["schema/*.yaml"]},
+    install_requires=read('requirements.txt').splitlines(),
     scripts=files('bin'),
     zip_safe=False
 )
