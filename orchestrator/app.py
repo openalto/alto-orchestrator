@@ -2,13 +2,12 @@ import falcon
 import json
 import requests
 
-AGENT_ADDRESS = "http://127.0.0.1:6789"
-RESOURCE_QUERY_ROUTE = "/resource-query"
+DEPLOY_URL = ""
 
 DomainData = {}
 
 
-class ResourceQueryEntry(object):
+class TasksEntry(object):
     def on_post(self, req, resp):
         flows = json.loads(req.stream.read().decode("UTF-8"))
         flow_id = 1
@@ -23,14 +22,12 @@ class ResourceQueryEntry(object):
                 dst_ip = job["potential_dsts"][0]["ip"]
                 dst_port = job["potential_dsts"][0]["port"]
                 d["query_desc"].append({
-                    "flow-id": flow_id,
-                    "src-ip": src_ip,
-                    "dst-ip": dst_ip,
-                    "dst-port": dst_port,
-                    "protocol": "tcp"
+                    "src": src_ip,
+                    "dst": dst_ip,
                 })
                 flow_id += 1
-        r = requests.post(AGENT_ADDRESS + RESOURCE_QUERY_ROUTE, json=d, headers={"content_type": "application/json"})
+        print(DEPLOY_URL)
+        r = requests.post(DEPLOY_URL, json=d, headers={"content_type": "application/json"})
         print(r.text)
         # TODO: get agent response
         resp.status = falcon.HTTP_200
@@ -41,6 +38,7 @@ class RegisterEntry(object):
     def on_post(self, req, resp):
         raw_data = req.stream.read()
         info = json.loads(raw_data.decode('utf-8'))
+        DEPLOY_URL = info["deploy-url"]
         DomainData[info["domain-name"]] = info
         print(info)
         resp.status = falcon.HTTP_200
@@ -49,5 +47,5 @@ class RegisterEntry(object):
 
 app = falcon.API()
 
-app.add_route('/resource-query', ResourceQueryEntry())
+app.add_route('/tasks', TasksEntry())
 app.add_route('/register', RegisterEntry())

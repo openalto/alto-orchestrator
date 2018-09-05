@@ -7,5 +7,5 @@ setup(name='alto-orchestrator',
       description='Alto orchestrator',
       author='SNLab',
       author_email='snlab@gmail.com',
-      packages=['distutils', 'distutils.command'],
+      packages=['orchestrator'],
       )
