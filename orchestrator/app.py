@@ -5,6 +5,8 @@ import requests
 AGENT_ADDRESS = "http://127.0.0.1:6789"
 RESOURCE_QUERY_ROUTE = "/resource-query"
 
+DomainData = {}
+
 
 class ResourceQueryEntry(object):
     def on_post(self, req, resp):
@@ -35,6 +37,17 @@ class ResourceQueryEntry(object):
         resp.body = """ {"code": "OK"} """
 
 
+class RegisterEntry(object):
+    def on_post(self, req, resp):
+        raw_data = req.stream.read()
+        info = json.loads(raw_data.decode('utf-8'))
+        DomainData[info["domain-name"]] = info
+        print(info)
+        resp.status = falcon.HTTP_200
+        resp.body = """ {"code": "OK"} """
+
+
 app = falcon.API()
 
 app.add_route('/resource-query', ResourceQueryEntry())
+app.add_route('/register', RegisterEntry())
