@@ -1,7 +1,6 @@
 import falcon
 import json
 import requests
-import scipy
 import zmq
 
 from scipy.optimize import linprog
@@ -10,6 +9,7 @@ from scipy.optimize import linprog
 class DATA:
     DEPLOY_URL = ""
     RESOURCE_QUERY_URL = ""
+    ON_DEMAND_PCE_URL = ""
     FLOW_ID = 1
     id_map = {}
     sshd_servers = set()
@@ -108,7 +108,6 @@ class TasksEntry(object):
         }
         DATA.flow_id_map = {}
         for flow in flows:
-            id = flow["id"]
             jobs = flow["jobs"]
             for job in jobs:
                 src_ip = job["potential_srcs"][0]["ip"]
@@ -141,12 +140,37 @@ class TasksEntry(object):
         print(r.text)
 
 
+class OnDemandPCEEntry(object):
+    def on_post(self, req, resp):
+        flows = json.loads(req.stream.read().decode("UTF-8"))
+        d = []
+        for flow in flows:
+            jobs = flow["jobs"]
+            for job in jobs:
+                src_ip = job["potential_srcs"][0]["ip"]
+                dst_ip = job["potential_dsts"][0]["ip"]
+                item = {
+                    "src": src_ip,
+                    "dst": dst_ip,
+                }
+                item.update(job.get("demand", {}))
+                d.append(item)
+
+        print(DATA.ON_DEMAND_PCE_URL)
+        print(d)
+        r = requests.post(DATA.ON_DEMAND_PCE_URL, json=d, headers={"content_type": "application/json"})
+        resp.status = falcon.HTTP_200
+        resp.body = r.text
+        print(r.text)
+
+
 class RegisterEntry(object):
     def on_post(self, req, resp):
         raw_data = req.stream.read()
         info = json.loads(raw_data.decode('utf-8'))
         DATA.DEPLOY_URL = info["deploy-url"]
         DATA.RESOURCE_QUERY_URL = DATA.DEPLOY_URL.replace("deploys", "resource-query")
+        DATA.ON_DEMAND_PCE_URL = DATA.DEPLOY_URL.replace("deploys", "on-demand-deploy")
         DomainData[info["domain-name"]] = info
         print(info)
 
@@ -160,5 +184,6 @@ app.add_route('/tasks', TasksEntry())
 app.add_route('/register', RegisterEntry())
 app.add_route('/calculate_bandwidth', CalculateBandwidthEntry())
 app.add_route('/run_task', RunTaskEntry())
+app.add_route('/on_demand_pce', OnDemandPCEEntry())
 
 DATA.id_map = json.load(open('name-map.json'))
