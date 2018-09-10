@@ -59,6 +59,8 @@ class RunTaskEntry(object):
         resp.status = falcon.HTTP_200
         resp.body = json.dumps({"result": "OK"})
 
+        DATA.FLOW_ID = 1  # Start from 1 for every submission
+
 
 class CalculateBandwidthEntry(object):
     def on_post(self, req, resp):
@@ -178,6 +180,17 @@ class RegisterEntry(object):
         resp.body = """ {"code": "OK"} """
 
 
+class StopTaskEntry(object):
+    def on_post(self, req, resp):
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.connect("tcp://127.0.0.1:12333")
+        host_name = list(DATA.id_map.values())[0]  # Choose a host name randomly
+        socket.send_string("%s pkill dd" % host_name)
+        socket.recv()
+        socket.close()
+
+
 app = falcon.API()
 
 app.add_route('/tasks', TasksEntry())
@@ -185,5 +198,6 @@ app.add_route('/register', RegisterEntry())
 app.add_route('/calculate_bandwidth', CalculateBandwidthEntry())
 app.add_route('/run_task', RunTaskEntry())
 app.add_route('/on_demand_pce', OnDemandPCEEntry())
+app.add_route('/stop_task', StopTaskEntry())
 
 DATA.id_map = json.load(open('name-map.json'))
