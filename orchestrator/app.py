@@ -59,6 +59,8 @@ class RunTaskEntry(object):
         resp.status = falcon.HTTP_200
         resp.body = json.dumps({"result": "OK"})
 
+        DATA.FLOW_ID = 1  # Start from 1 for every submission
+
 
 class CalculateBandwidthEntry(object):
     def on_post(self, req, resp):
