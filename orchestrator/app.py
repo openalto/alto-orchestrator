@@ -239,8 +239,8 @@ class RunTaskInterdomainEntry(object):
             flow = interdomain_flow_id_map[flow_id]
             print(flow)
 
-            src_ip = flow['flow']["src-ip"]
-            dst_ip = flow['flow']["dst-ip"]
+            src_ip = flow["src-ip"]
+            dst_ip = flow["dst-ip"]
             src_name = interdomain_id_map[src_ip]
             dst_name = interdomain_id_map[dst_ip]
 
