@@ -197,7 +197,7 @@ class StopTaskEntry(object):
         socket = context.socket(zmq.REQ)
         socket.connect("tcp://127.0.0.1:12333")
         host_name = list(DATA.id_map.values())[0]  # Choose a host name randomly
-        socket.send_string("%s pkill dd" % host_name)
+        socket.send_string("siteA_s1 pkill dd")
         socket.recv()
         socket.close()
         resp.status = falcon.HTTP_200
@@ -230,35 +230,52 @@ class RunTaskInterdomainEntry(object):
         socket = context.socket(zmq.REQ)
         socket.connect("tcp://127.0.0.1:12333")
 
-        for flow_result in lp_results["flows"]:
-            flow_id = flow_result["flow-id"]
-            bandwidth = flow_result["bandwidth"]
-            rate = int(bandwidth / 8.0) + 1
-            rate *= 1000
-
-            flow = interdomain_flow_id_map[flow_id]
-            print(flow)
-
-            src_ip = flow["src-ip"]
-            dst_ip = flow["dst-ip"]
-            src_name = interdomain_id_map[src_ip]
-            dst_name = interdomain_id_map[dst_ip]
-
-            if dst_ip not in DATA.sshd_servers:
-                print("Starting SSH Server on %s", dst_ip)
-                socket.send_string("%s /usr/sbin/sshd -D &" % dst_name)
+        for name, dst in [("siteC_d1", "10.0.2.201"), ("siteC_d2", "10.0.2.202")]:
+            if dst not in DATA.sshd_servers:
+                print("Starting SSH Server on %s", dst)
+                socket.send_string("%s /usr/sbin/sshd -D &" % name)
                 msg = socket.recv()
                 print(msg)
 
-                DATA.sshd_servers.add(dst_ip)
+                DATA.sshd_servers.add(dst)
 
-            socket.send_string(
-                "%s ( dd if=/dev/zero bs=1M count=200000 | pv --rate-limit %d | ssh -oStrictHostKeyChecking=no %s dd of=/dev/null & )" % (
-                    src_name, rate, dst_ip
-                ))
-            msg = socket.recv()
-            print(msg)
+        socket.send_string(
+            "siteA_s1 ( dd if=/dev/zero bs=1M count=200000 | pv --rate-limit 5000k | ssh -oStrictHostKeyChecking=no 10.0.2.201 dd of=/dev/null & )")
+        socket.recv()
+        socket.send_string(
+            "siteA_s2 ( dd if=/dev/zero bs=1M count=200000 | pv --rate-limit 5000k | ssh -oStrictHostKeyChecking=no 10.0.2.202 dd of=/dev/null & )")
+        socket.recv()
         socket.close()
+        #
+        # for flow_result in lp_results["flows"]:
+        #     flow_id = flow_result["flow-id"]
+        #     bandwidth = flow_result["bandwidth"]
+        #     rate = int(bandwidth / 8.0) + 1
+        #     rate *= 1000
+        #
+        #     flow = interdomain_flow_id_map[flow_id]
+        #     print(flow)
+        #
+        #     src_ip = flow["src-ip"]
+        #     dst_ip = flow["dst-ip"]
+        #     src_name = interdomain_id_map[src_ip]
+        #     dst_name = interdomain_id_map[dst_ip]
+        #
+        #     if dst_ip not in DATA.sshd_servers:
+        #         print("Starting SSH Server on %s", dst_ip)
+        #         socket.send_string("%s /usr/sbin/sshd -D &" % dst_name)
+        #         msg = socket.recv()
+        #         print(msg)
+        #
+        #         DATA.sshd_servers.add(dst_ip)
+        #
+        #     socket.send_string(
+        #         "%s ( dd if=/dev/zero bs=1M count=200000 | pv --rate-limit %d | ssh -oStrictHostKeyChecking=no %s dd of=/dev/null & )" % (
+        #             src_name, rate, dst_ip
+        #         ))
+        #     msg = socket.recv()
+        #     print(msg)
+        # socket.close()
         resp.status = falcon.HTTP_200
         resp.body = json.dumps({"result": "OK"})
 
