@@ -103,6 +103,15 @@ class CalculateBandwidthEntry(object):
         resp.body = json.dumps(results)
 
 
+def do_resource_query(d, resp):
+    print(DATA.RESOURCE_QUERY_URL)
+    print(d)
+    r = requests.post(DATA.RESOURCE_QUERY_URL, json=d, headers={"content_type": "application/json"})
+    resp.status = falcon.HTTP_200
+    resp.body = r.text
+    print(r.text)
+
+
 class TasksEntry(object):
     def on_post(self, req, resp):
         flows = json.loads(req.stream.read().decode("UTF-8"))
@@ -135,12 +144,13 @@ class TasksEntry(object):
                     }
                 }
                 DATA.FLOW_ID += 1
-        print(DATA.RESOURCE_QUERY_URL)
-        print(d)
-        r = requests.post(DATA.RESOURCE_QUERY_URL, json=d, headers={"content_type": "application/json"})
-        resp.status = falcon.HTTP_200
-        resp.body = r.text
-        print(r.text)
+        do_resource_query(d, resp)
+
+
+class ResourceQueryEntry(object):
+    def on_post(self, req, resp):
+        d = json.loads(req.stream.read().decode("UTF-8"))
+        do_resource_query(d, resp)
 
 
 class OnDemandPCEEntry(object):
@@ -198,6 +208,7 @@ app.add_route('/tasks', TasksEntry())
 app.add_route('/register', RegisterEntry())
 app.add_route('/calculate_bandwidth', CalculateBandwidthEntry())
 app.add_route('/run_task', RunTaskEntry())
+app.add_route('/resource_query', ResourceQueryEntry())
 app.add_route('/on_demand_pce', OnDemandPCEEntry())
 app.add_route('/stop_task', StopTaskEntry())
 
