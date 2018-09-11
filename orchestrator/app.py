@@ -32,6 +32,7 @@ class RunTaskEntry(object):
             flow_id = flow_result["flow-id"]
             bandwidth = flow_result["bandwidth"]
             rate = int(bandwidth / 8.0) + 1
+            rate *= 1000
 
             flow = DATA.flow_id_map[flow_id]
             print(flow)
@@ -50,7 +51,7 @@ class RunTaskEntry(object):
                 DATA.sshd_servers.add(dst_ip)
 
             socket.send_string(
-                "%s ( dd if=/dev/zero bs=1M count=200 | pv --rate-limit %dk | ssh -oStrictHostKeyChecking=no %s dd of=/dev/null & )" % (
+                "%s ( dd if=/dev/zero bs=1M count=200000 | pv --rate-limit %d | ssh -oStrictHostKeyChecking=no %s dd of=/dev/null & )" % (
                     src_name, rate, dst_ip
                 ))
             msg = socket.recv()
