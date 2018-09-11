@@ -200,6 +200,67 @@ class StopTaskEntry(object):
         socket.send_string("%s pkill dd" % host_name)
         socket.recv()
         socket.close()
+        resp.status = falcon.HTTP_200
+        resp.status = """{"code": "OK"}"""
+
+
+class RunTaskInterdomainEntry(object):
+    def on_post(self, req, resp):
+        lp_results = json.loads(req.stream.read().decode('UTF-8'))
+        interdomain_flow_id_map = {
+            1: {
+                "src-ip": "10.0.1.101",
+                "dst-ip": "10.0.2.201"
+            },
+            2: {
+                "src-ip": "10.0.1.102",
+                "dst-ip": "10.0.2.202"
+            }
+        }
+
+        interdomain_id_map = {
+            "10.0.1.101": "siteA_s1",
+            "10.0.1.102": "siteA_s2",
+            "10.0.2.201": "siteC_d1",
+            "10.0.2.202": "siteC_d2",
+        }
+
+        # Starting SSH server
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.connect("tcp://127.0.0.1:12333")
+
+        for flow_result in lp_results["flows"]:
+            flow_id = flow_result["flow-id"]
+            bandwidth = flow_result["bandwidth"]
+            rate = int(bandwidth / 8.0) + 1
+            rate *= 1000
+
+            flow = interdomain_flow_id_map[flow_id]
+            print(flow)
+
+            src_ip = flow['flow']["src-ip"]
+            dst_ip = flow['flow']["dst-ip"]
+            src_name = interdomain_id_map[src_ip]
+            dst_name = interdomain_id_map[dst_ip]
+
+            if dst_ip not in DATA.sshd_servers:
+                print("Starting SSH Server on %s", dst_ip)
+                socket.send_string("%s /usr/sbin/sshd -D &" % dst_name)
+                msg = socket.recv()
+                print(msg)
+
+                DATA.sshd_servers.add(dst_ip)
+
+            socket.send_string(
+                "%s ( dd if=/dev/zero bs=1M count=200000 | pv --rate-limit %d | ssh -oStrictHostKeyChecking=no %s dd of=/dev/null & )" % (
+                    src_name, rate, dst_ip
+                ))
+            msg = socket.recv()
+            print(msg)
+        socket.close()
+        resp.status = falcon.HTTP_200
+        resp.body = json.dumps({"result": "OK"})
 
 
 app = falcon.API()
@@ -208,6 +269,7 @@ app.add_route('/tasks', TasksEntry())
 app.add_route('/register', RegisterEntry())
 app.add_route('/calculate_bandwidth', CalculateBandwidthEntry())
 app.add_route('/run_task', RunTaskEntry())
+app.add_route('/run_task_interdomain', RunTaskInterdomainEntry())
 app.add_route('/resource_query', ResourceQueryEntry())
 app.add_route('/on_demand_pce', OnDemandPCEEntry())
 app.add_route('/stop_task', StopTaskEntry())
