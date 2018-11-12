@@ -187,7 +187,7 @@ class TasksEntry(object):
 
 class PathQueryEntry(object):
     def on_post(self, req, resp):
-        do_path_query(json.load(req.stream.read()), resp)
+        do_path_query(json.load(req.stream.read().decode("UTF-8")), resp)
 
 
 class ResourceQueryEntry(object):
