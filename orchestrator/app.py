@@ -142,12 +142,17 @@ def do_path_query(d, resp):
 
 
 def do_resource_query(d, resp):
-    print(DATA.RESOURCE_QUERY_URL)
     print(d)
-    r = requests.post(DATA.RESOURCE_QUERY_URL, json=d, headers={"content_type": "application/json"})
+    full_list = {}
+    for domain_name in data.domain_data.keys():
+        domain_data = data.domain_data[domain_name]
+        url = "http://%s:%d%s" % (domain_data["hostname"], data.resource_query_port, data.resource_query_uri)
+        print(url)
+        r = requests.post(url, json=d, headers={"content_type": "application/json"})
+        full_list[domain_name] = json.loads(r.text)
     resp.status = falcon.HTTP_200
-    resp.body = r.text
-    print(r.text)
+    resp.body = json.dumps(full_list)
+    print(full_list)
 
 
 class TasksEntry(object):
