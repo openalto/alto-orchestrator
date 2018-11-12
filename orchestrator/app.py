@@ -2,8 +2,10 @@ import falcon
 import json
 import requests
 import zmq
+import re
 
 from scipy.optimize import linprog
+from orchestrator.data import data
 
 
 class DATA:
@@ -103,6 +105,42 @@ class CalculateBandwidthEntry(object):
         resp.body = json.dumps(results)
 
 
+def do_path_query(d, resp):
+    """
+    Input format
+    {
+      "flows": [
+        {
+          "src": "10.0.1.100",
+          "dst": "10.0.2.100",
+          "ingress": "openflow:2:1"
+        },
+        {
+          "src": "10.0.1.101",
+          "dst": "10.0.3.100",
+          "ingress": "openflow:2:2"
+        }
+      ]
+    }
+    """
+    flows = d["flows"]
+    domain_flows = {}
+    r = ""
+    for flow in flows:
+        src = flow["src"]
+        domain_name = data.host_domain_name[src]
+        if domain_name not in domain_flows:
+            domain_flows[domain_name] = list()
+        domain_flows[domain_name].append(flow)
+    for domain in domain_flows:
+        r = requests.post(
+            "http://%s:%d%s" % (data.domain_data[domain]["hostname"], data.path_query_port, data.path_query_uri),
+            json={"flows": domain_flows[domain]})
+    resp.status = falcon.HTTP_200
+    resp.body = r.text
+    print(r.text)
+
+
 def do_resource_query(d, resp):
     print(DATA.RESOURCE_QUERY_URL)
     print(d)
@@ -147,6 +185,11 @@ class TasksEntry(object):
         do_resource_query(d, resp)
 
 
+class PathQueryEntry(object):
+    def on_post(self, req, resp):
+        do_path_query(json.load(req.stream.read()), resp)
+
+
 class ResourceQueryEntry(object):
     def on_post(self, req, resp):
         d = json.loads(req.stream.read().decode("UTF-8"))
@@ -181,9 +224,9 @@ class RegisterEntry(object):
     def on_post(self, req, resp):
         raw_data = req.stream.read()
         info = json.loads(raw_data.decode('utf-8'))
+        hostname = re.search("(?<=^http://)\w+(?=\:)", info["deploy-url"]).group(0)
+        data.domain_data[info["domain-name"]]["hostname"] = hostname
         DATA.DEPLOY_URL = info["deploy-url"]
-        DATA.RESOURCE_QUERY_URL = DATA.DEPLOY_URL.replace("deploys", "resource-query")
-        DATA.ON_DEMAND_PCE_URL = DATA.DEPLOY_URL.replace("deploys", "on-demand-deploy")
         DomainData[info["domain-name"]] = info
         print(info)
 
@@ -290,5 +333,6 @@ app.add_route('/run_task_interdomain', RunTaskInterdomainEntry())
 app.add_route('/resource_query', ResourceQueryEntry())
 app.add_route('/on_demand_pce', OnDemandPCEEntry())
 app.add_route('/stop_task', StopTaskEntry())
+app.add_route('/path-query', PathQueryEntry())
 
 DATA.id_map = json.load(open('name-map.json'))
