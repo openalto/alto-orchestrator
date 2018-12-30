@@ -162,6 +162,7 @@ class TasksEntry(object):
             "query-desc": []
         }
         DATA.flow_id_map = {}
+        DATA.FLOW_ID = 1
         for flow in flows:
             jobs = flow["jobs"]
             for job in jobs:
