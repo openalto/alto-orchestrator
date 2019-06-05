@@ -94,7 +94,7 @@ class CalculateBandwidthEntry(object):
             A.append(A_r)
             b.append(60000)
 
-        res = linprog(c, A_ub=A, b_ub=b)
+        res = linprog(c, A_ub=A, b_ub=b, method='revised simplex')
         print(res.x)
 
         results = {"flows": []}
